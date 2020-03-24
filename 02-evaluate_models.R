@@ -8,6 +8,10 @@ library(logitnorm)
 # Set the theme.
 theme_set(theme_bw())
 
+############################################
+# Did the simulations perform as expected? #
+############################################
+
 # Get distributional properties of the simulated datasets.
 score.dist.df = sims.df %>%
   unnest(data) %>%
@@ -27,8 +31,8 @@ score.dist.df = sims.df %>%
          scale = fct_relevel(scale, "wide", "narrow"),
          distribution = fct_relevel(distribution, "censored"))
 
-# Check the mean and standard deviation of the scores in each simulated
-# dataset.
+# Check the mean of the scores in each simulated dataset against the target
+# mean.
 score.dist.df %>%
   group_by(n.obs, location, scale, continuous, distribution, target.mean) %>%
   summarize(upper.95 = quantile(mean.score, 0.975),
@@ -45,6 +49,9 @@ score.dist.df %>%
   scale_x_discrete("Size of coefficient for continuous predictor") +
   scale_y_continuous("Mean score", breaks = seq(0, 1, 0.1)) +
   coord_flip()
+
+# Check the standard deviation of the scores in each simulated dataset against
+# the target standard deviation.
 score.dist.df %>%
   group_by(n.obs, location, scale, continuous, distribution, target.sd) %>%
   summarize(upper.95 = quantile(sd.score, 0.975),
@@ -61,6 +68,8 @@ score.dist.df %>%
   scale_x_discrete("Size of coefficients for continuous predictor") +
   scale_y_continuous("Standard deviation of score") +
   coord_flip()
+
+# Do the correlations between GPA and score look reasonable?
 sims.df %>%
   filter(continuous == 0.05 & sub.sim.id == 1) %>%
   mutate(distribution = fct_relevel(distribution, "censored", "logit-normal"),
@@ -69,9 +78,15 @@ sims.df %>%
   unnest(data) %>%
   ggplot(aes(x = cs.gpa, y = score)) +
   geom_point(alpha = 0.1) +
-  stat_smooth() +
-  scale_x_continuous(breaks = seq(-5, 5, 1)) +
-  facet_grid(location + distribution ~ scale + n.obs)
+  stat_smooth(color = "#00A8E1", fill = "#00A8E1") +
+  scale_x_continuous("GPA (centered and standardized)", breaks = seq(-5, 5, 1)) +
+  scale_y_continuous("Score") +
+  facet_grid(location + distribution ~ scale + n.obs) +
+  ggtitle("Sample simulated datasets for the strongest effect of GPA")
+
+###########################################
+# Compare fitted parameters across models #
+###########################################
 
 # Get fitted parameters.
 fitted.params.df = bind_rows(
@@ -123,7 +138,12 @@ fitted.params.df %>%
                       breaks = c(1, 3),
                       labels = c("No", "Yes")) +
   scale_alpha_identity() +
-  facet_grid(location + distribution ~ scale + n.obs)
+  facet_grid(location + distribution ~ scale + n.obs) +
+  ggtitle("Frequency with which models fit to simulated datasets find a significant effect of GPA")
+
+#####################################
+# Compare predictions across models #
+#####################################
 
 # How often does the normal fit predict values greater than 1?
 outside.bounds.df = sims.df %>%
@@ -145,7 +165,7 @@ outside.bounds.df %>%
   scale_y_continuous("Number of predictions > 1") +
   facet_grid(location + distribution ~ scale + n.obs)
 
-# How do the residuals from different fits compare?
+# Get predicted values and residuals.
 preds.df = bind_rows(
   normal = sims.df %>%
     unnest(cols = c(data, normal.preds)),
@@ -165,6 +185,8 @@ preds.df = bind_rows(
          fit = fct_relevel(fit, "normal", "censored", "logit-normal"),
          location = fct_relevel(location, "mid", "high"),
          scale = fct_relevel(scale, "wide", "narrow"))
+
+# Plot predictions from each model for a set of sample simulations.
 preds.df %>%
   filter(sub.sim.id == 1 & continuous == 0.05) %>%
   ggplot(aes(x = fitted.values, y = score, color = fit, fill = fit)) +
@@ -174,12 +196,29 @@ preds.df %>%
   scale_color_discrete("Model fit to data") +
   scale_fill_discrete("Model fit to data") +
   facet_grid(location + distribution ~ scale + n.obs)
+
+# Violin plots of residuals from different fits.
 preds.df %>%
-  filter(continuous == 0.05) %>%
-  ggplot(aes(x = residuals, fill = fit)) +
-  geom_histogram(position = "identity", alpha = 0.5) +
-  scale_fill_discrete("Model fit to data") +
-  facet_grid(location + distribution ~ scale + n.obs, scales = "free")
+  filter(continuous == 0.05 & sub.sim.id <= 1) %>%
+  ggplot(aes(x = fit, y = residuals, fill = fit, color = fit)) +
+  geom_rect(data = preds.df %>%
+              filter(continuous == 0.05 & sub.sim.id <= 1 &
+                       as.character(fit) == as.character(distribution)) %>%
+              mutate(fit = fct_rev(fit)),
+            aes(xmin = as.numeric(fit) - 0.5, xmax = as.numeric(fit) + 0.5,
+                ymin = -1, ymax = 1),
+            fill = "gray", color = NA) +
+  geom_violin() +
+  geom_boxplot(color = "white", width = 0.2, outlier.alpha = 0) +
+  stat_summary(fun.y = "median", geom = "point") +
+  scale_x_discrete("Model fit to data", limits = rev(levels(preds.df$fit))) +
+  scale_y_continuous("Residual") +
+  facet_grid(location + distribution ~ scale + n.obs) +
+  coord_flip() +
+  theme(legend.position = "none") +
+  ggtitle("Residuals of different models fit to simulated datasets")
+
+# Mean absolute residual for different fits.
 preds.df %>%
   group_by(fit, n.obs, location, scale, distribution, continuous) %>%
   summarize(mean.resid = mean(abs(residuals))) %>%
@@ -189,3 +228,4 @@ preds.df %>%
   scale_y_continuous("Mean absolute residual") +
   scale_fill_discrete("Model fit to data") +
   facet_grid(location + distribution ~ scale + n.obs)
+
