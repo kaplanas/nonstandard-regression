@@ -19,11 +19,11 @@ library(logitnorm)
 n.sims = 100
 
 # Distance to adjust scores away from exactly 0 or 1.
-score.offset = 0.01
+score.offset = 0.0001
 
 # Table of location parameters, scale parameters, and coefficients.  Add target
 # mean and standard deviation for each collection of parameters.
-params.df = expand.grid(
+real.params.df = expand.grid(
   distribution = c("censored", "logit-normal", "beta"),
   location = c("mid", "high"),
   scale = c("narrow", "wide"),
@@ -75,7 +75,7 @@ find.continuous.coef = function(distribution, location, target.coef) {
 # change in score regardless of the distribution that generated the scores.
 # Finding the right parameters is somewhat brittle, especially for the beta
 # distribution, so let's give it multiple opportunities.
-params.df = params.df %>%
+real.params.df = real.params.df %>%
   # The number of distinct sets of parameters we need to optimize.
   dplyr::select(distribution, target.mean, target.sd, continuous) %>%
   distinct() %>%
@@ -138,7 +138,7 @@ params.df = params.df %>%
                values_to = "tv") %>%
   mutate(param = ifelse(param == "cont", "continuous", param)) %>%
   # Join back to the main table.
-  right_join(params.df, by = c("distribution", "param", "continuous",
+  right_join(real.params.df, by = c("distribution", "param", "continuous",
                                "target.mean", "target.sd")) %>%
   mutate(true.value = tv) %>%
   dplyr::select(distribution, location, scale, continuous, param, true.value,
@@ -147,10 +147,10 @@ params.df = params.df %>%
 # Parameters we're going to vary in each simulation.
 sims.df = expand.grid(
   n.obs = c(100, 500),
-  location = unique(params.df$location),
-  scale = unique(params.df$scale),
-  distribution = unique(params.df$distribution),
-  continuous = unique(params.df$continuous),
+  location = unique(real.params.df$location),
+  scale = unique(real.params.df$scale),
+  distribution = unique(real.params.df$distribution),
+  continuous = unique(real.params.df$continuous),
   sub.sim.id = 1:n.sims,
   stringsAsFactors = F
 ) %>%
@@ -162,7 +162,7 @@ for(i in 1:nrow(sims.df)) {
   if(i %% 100 == 0) { print(paste(i, "/", nrow(sims.df))) }
   # Get parameters for this dataset.
   n.obs = sims.df$n.obs[i]
-  temp.params.df = params.df %>%
+  temp.params.df = real.params.df %>%
     filter(distribution == sims.df$distribution[i] &
              location == sims.df$location[i] &
              scale == sims.df$scale[i] &

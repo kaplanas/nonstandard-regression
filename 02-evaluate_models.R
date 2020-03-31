@@ -22,7 +22,7 @@ score.dist.df = sims.df %>%
             sd.score = sd(score),
             sd.score.o = sd(score.o)) %>%
   ungroup() %>%
-  left_join(params.df %>%
+  left_join(real.params.df %>%
               dplyr::select(distribution, location, scale, continuous,
                             target.mean, target.sd) %>%
               distinct(),
@@ -84,6 +84,22 @@ sims.df %>%
   facet_grid(location + distribution ~ scale + n.obs) +
   ggtitle("Sample simulated datasets for the strongest effect of GPA")
 
+# Sample datasets.
+sims.df %>%
+  filter(continuous == 0.05 &
+           sub.sim.id == 1 &
+           scale == "narrow" &
+           location == "high" &
+           distribution == "censored" &
+           n.obs == 500) %>%
+  unnest(data) %>%
+  ggplot(aes(x = cs.gpa, y = score)) +
+  geom_point(alpha = 0.1) +
+  stat_smooth(color = "#00A8E1", fill = "#00A8E1") +
+  scale_x_continuous("GPA (centered and standardized)", breaks = seq(-5, 5, 1)) +
+  scale_y_continuous("Score") +
+  ggtitle("Average score: high\nStandard deviation: narrow\nObservations: 500\nDistribution: censored")
+
 ###########################################
 # Compare fitted parameters across models #
 ###########################################
@@ -140,6 +156,35 @@ fitted.params.df %>%
   scale_alpha_identity() +
   facet_grid(location + distribution ~ scale + n.obs) +
   ggtitle("Frequency with which models fit to simulated datasets find a significant effect of GPA")
+
+# One facet.
+fitted.params.df %>%
+  filter(param == "continuous" &
+           scale == "wide" &
+           n.obs == 500 &
+           location == "mid" &
+           distribution == "censored") %>%
+  mutate(found.signif = as.numeric(estimate + (qnorm(0.025) * std.error) > 0)) %>%
+  group_by(distribution, fit, n.obs, location, scale, continuous) %>%
+  summarize(prop.found.signif = sum(found.signif) / n()) %>%
+  ungroup() %>%
+  mutate(fit.numeric = as.numeric(fit),
+         match = as.character(fit) == as.character(distribution),
+         line.width = ifelse(match, 3, 1),
+         line.alpha = ifelse(match, 0.5, 1)) %>%
+  ggplot(aes(x = as.factor(continuous), y = prop.found.signif, color = fit,
+             size = line.width, alpha = line.alpha)) +
+  geom_line(aes(group = fit)) +
+  scale_x_discrete("Size of coefficient of GPA") +
+  scale_y_continuous("Proportion found significant effect",
+                     limits = c(0, 1)) +
+  scale_color_discrete("Model fit to data") +
+  scale_size_identity("Model matches true distribution",
+                      guide = "legend",
+                      breaks = c(1, 3),
+                      labels = c("No", "Yes")) +
+  scale_alpha_identity() +
+  ggtitle("Frequency with which models fit to simulated datasets find a significant effect of GPA\nAverage score: mid\nStandard deviation: wide\nObservations: 500\nDistribution: censored")
 
 #####################################
 # Compare predictions across models #
