@@ -1,0 +1,972 @@
+<!DOCTYPE html>
+<html lang="" xml:lang="">
+  <head>
+    <title>Doing Regression When Your Dependent Variables Aren’t Well Behaved</title>
+    <meta charset="utf-8" />
+    <meta name="author" content="Abby Kaplan, Salt Lake Community College" />
+    <meta name="date" content="2020-04-28" />
+    <link rel="stylesheet" href="footer.css" type="text/css" />
+    <link rel="stylesheet" href="xaringan-themer.css" type="text/css" />
+  </head>
+  <body>
+    <textarea id="source">
+class: center, middle, inverse, title-slide
+
+# Doing Regression When Your Dependent Variables Aren’t Well Behaved
+## HEDW 2020
+### Abby Kaplan, Salt Lake Community College
+### April 28, 2020
+
+---
+
+
+layout: true
+
+&lt;div class="my-footer"&gt;&lt;span&gt;https://github.com/kaplanas/nonstandard-regression&lt;/span&gt;&lt;/div&gt; 
+
+---
+
+
+
+
+
+
+
+class: inverse, center, middle
+
+# Outline
+
+---
+
+# Outline
+
++ Types of dependent variables
+
++ Working dataset
+
++ Bounded dependent variables
+
+    + Classical linear regression
+    + Censored regression
+    + Logit-normal regression
+    + Beta regression
+
++ Ordered discrete dependent variables
+
+    + Classical linear regression
+    + Ordered logistic regression
+
++ Unordered discrete dependent variables
+
+    + Multinomial logistic regression
+
+---
+
+class: inverse, center, middle
+
+# Types of dependent variables
+
+---
+
+# Types of dependent variables
+
++ Bounded dependent variables
+
+    + Test score
+    + GPA
+    + Section fill percentage
+
+--
+
++ Ordered discrete dependent variables
+
+    + Letter grade
+    + Likert response (strongly agree, somewhat agree, ...)
+
+--
+
++ Unordered discrete dependent variables
+
+    + Choice of section
+    + Choice of course
+    + Choice of major
+    + Choice of...
+
+---
+
+class: inverse, center, middle
+
+# Dataset: Final exams
+
+---
+
+# Dataset: Final exams
+
++ Students enrolled in Underwater Basket-Weaving 101
+
+--
+
++ This is fake data, but realistic
+
+    + Similar things happen when we fit the same models to real datasets
+    + (Different variables, but the same idea)
+
+--
+
++ Dependent variables:
+
+    + Final exam score _(0 - 100)_
+    + Final exam grade _(A, B, C, D, F)_
+    + Class meeting days _(MWF, TR, Online)_
+
+--
+
++ Predictor variables:
+
+    + Phone battery charge before exam _(0 - 100, centered and standardized)_
+    + Number of Twitter followers _(logged, centered, and standardized)_
+    + Luke Skywalker or Han Solo? _(binary)_
+    + Left-handed? _(binary)_
+    + Tests 1, 2, 3 scores _(0 - 100, centered and standardized)_
+
+---
+
+# Dataset: Final exams
+
+.center[
+![](hedw2020_presentation_files/figure-html/exam_score_distribution-1.png)&lt;!-- --&gt;
+]
+
+---
+
+class: inverse, center, middle
+
+# Linear regression
+
+---
+
+# Classical linear regression
+
+
+
+.pull-left[
+`$$y_i = \alpha + \beta x_i + \epsilon_i$$`
+![](hedw2020_presentation_files/figure-html/normal_regression-1.png)&lt;!-- --&gt;
+]
+
+--
+
+.pull-right[
+`$$\epsilon_i \sim N(0, \sigma)$$`
+![](hedw2020_presentation_files/figure-html/normal_regression_residuals-1.png)&lt;!-- --&gt;
+]
+
+--
+
+.center[.large[
+`$$y_i \sim N(\alpha + \beta x_i, \sigma)$$`
+]]
+
+---
+
+# Classical linear regression: No limits on y
+
+.pull-left[
+`$$y_i \sim N(\alpha + \beta x_i, \sigma)$$`
+![](hedw2020_presentation_files/figure-html/normal_regression_no_limits-1.png)&lt;!-- --&gt;
+]
+
+--
+
+.pull-right[
+
++ Extrapolating so far beyond the support of the data is not a good idea
+{{content}}
+
+]
+
+--
+
++ But there are scenarios where it's easy to predict impossible values of y
+{{content}}
+
+--
+
++ Example: hard limits on y, data near those limits
+    + Test scores
+    + GPA
+    + Section fill rates
+{{content}}
+
+---
+
+# Fitting a classical linear regression
+
+
+```r
+normal.fit = lm(exam.raw ~ battery + followers + skywalker + left +
+                  test.1 + test.2 + test.3,
+                data = exams.df)
+round(coef(summary(normal.fit)), 4)
+```
+
+```
+##             Estimate Std. Error  t value Pr(&gt;|t|)
+## (Intercept)  65.4229     0.3073 212.9215   0.0000
+## battery       0.8397     0.2066   4.0647   0.0000
+## followers     0.0607     0.2013   0.3015   0.7631
+## skywalker    -1.2448     0.4034  -3.0856   0.0020
+## left          0.1865     0.8576   0.2175   0.8278
+## test.1        2.9729     0.2859  10.3995   0.0000
+## test.2        7.0235     0.3400  20.6556   0.0000
+## test.3       17.2223     0.3217  53.5378   0.0000
+```
+
+---
+
+# Predictions of a classical linear regression
+
+
+```r
+exams.df = exams.df %&gt;%
+  mutate(pred.normal = normal.fit$fitted.values,
+         pred.normal.out.of.bounds = pred.normal &gt; 100 |
+                                     pred.normal &lt; 0) %&gt;%
+  mutate(pred.normal = case_when(pred.normal &gt; 100 ~ 100,
+                                 pred.normal &lt; 0 ~ 0,
+                                 T ~ pred.normal),
+         resid.normal = exam.raw - pred.normal)
+```
+
+---
+
+# Predictions of a classical linear regression
+
+.center[
+![](hedw2020_presentation_files/figure-html/plot_normal_preds-1.png)&lt;!-- --&gt;
+]
+
+---
+
+class: inverse, center, middle
+
+# Censored regression
+
+---
+
+# Censored regression
+
+`$$z_i: \mbox{student's true knowledge/ability}$$`
+
+`$$z_i \sim N(\alpha + \beta x_i, \sigma)$$`
+
+`$$y_i = \Bigg\{\begin{array}{ll} 100 &amp; z_i \geq 100 \\ 0 &amp; z_i \leq 0 \\ z_i &amp; 0 \lt z_i \lt 100 \end{array}$$`
+
+.center[
+![](hedw2020_presentation_files/figure-html/plot_censored_function-1.png)&lt;!-- --&gt;
+]
+
+---
+
+# Censored normal distributions
+
+.center[
+![](hedw2020_presentation_files/figure-html/plot_censored_distributions-1.png)&lt;!-- --&gt;
+]
+
+---
+
+# Fitting a censored regression
+
+
+```r
+library(censReg)
+censored.fit = censReg(exam.raw ~ battery + followers + skywalker +
+                         left + test.1 + test.2 + test.3,
+                       left = 0, right = 100, data = exams.df)
+round(coef(summary(censored.fit)), 4)
+```
+
+```
+##             Estimate Std. error  t value Pr(&gt; t)
+## (Intercept)  63.5503     0.3496 181.7722  0.0000
+## battery       0.6268     0.2351   2.6658  0.0077
+## followers     0.3417     0.2271   1.5045  0.1325
+## skywalker    -0.7001     0.4530  -1.5455  0.1222
+## left         -0.1587     0.9786  -0.1622  0.8711
+## test.1        3.7594     0.3484  10.7891  0.0000
+## test.2        8.3002     0.3895  21.3106  0.0000
+## test.3       19.5282     0.3709  52.6557  0.0000
+## logSigma      2.6640     0.0112 238.7725  0.0000
+```
+
+---
+
+# Predictions of a censored regression
+
+
+```r
+predictors = c("battery", "followers", "skywalker", "left",
+               "test.1", "test.2", "test.3")
+exams.df$pred.censored = c(
+  as.matrix(cbind(rep(1, nrow(exams.df)), exams.df[,predictors]))
+  %*%
+  summary(censored.fit)$estimate[c("(Intercept)",
+                                   predictors),"Estimate"]
+)
+exams.df = exams.df %&gt;%
+  mutate(pred.censored = case_when(pred.censored &gt; 100 ~ 100,
+                                   pred.censored &lt; 0 ~ 0,
+                                   T ~ pred.censored),
+         resid.censored = exam.raw - pred.censored)
+```
+
+---
+
+# Predictions of a censored regression
+
+.center[
+![](hedw2020_presentation_files/figure-html/plot_censored_preds-1.png)&lt;!-- --&gt;
+]
+
+---
+
+class: inverse, center, middle
+
+# Logit-normal regression
+
+---
+
+# Logit-normal regression
+
+`$$z_i: \mbox{student's true knowledge/ability}$$`
+
+`$$z_i \sim N(\alpha + \beta x_i, \sigma)$$`
+
+`$$\frac{y_i}{100} = \mbox{logit}^{-1}(z_i)$$`
+
+.center[
+![](hedw2020_presentation_files/figure-html/plot_invlogit_function-1.png)&lt;!-- --&gt;
+]
+
+---
+
+# Logit-normal distributions
+
+.center[
+![](hedw2020_presentation_files/figure-html/plot_logit_distributions-1.png)&lt;!-- --&gt;
+]
+
+---
+
+# Adjusting y for a logit-normal regression
+
++ Divide `\(y\)` by 100 to bound it between 0 and 1
+
++ `\(y\)` can't be exactly 0 or 1 (the logit is infinite), so offset those values slightly
+
+
+```r
+score.offset = 0.0001
+exams.df = exams.df %&gt;%
+  mutate(exam.raw.offset = case_when(exam.raw / 100 == 1 ~
+                                       1 - score.offset,
+                                     exam.raw / 100 == 0 ~
+                                       score.offset,
+                                     T ~ exam.raw / 100))
+```
+
+---
+
+# Fitting a logit-normal regression: Method 1
+
+
+```r
+library(gamlss)
+logit.1.fit = gamlss(exam.raw.offset ~ battery + followers +
+                       skywalker + left + test.1 + test.2 + test.3,
+                     data = exams.df, family = LOGITNO(),
+                     control = gamlss.control(trace = F))
+summary(logit.fit)
+```
+
+
+
+
+```
+##             Estimate Std. Error t value Pr(&gt;|t|)
+## (Intercept)  -0.0463     0.0428 -1.0810   0.2798
+## battery      -0.0019     0.0288 -0.0646   0.9485
+## followers     0.0782     0.0280  2.7876   0.0053
+## skywalker     0.0988     0.0562  1.7572   0.0789
+## left         -0.0296     0.1195 -0.2477   0.8044
+## test.1        0.1387     0.0398  3.4830   0.0005
+## test.2        0.7318     0.0474 15.4462   0.0000
+## test.3        2.3920     0.0448 53.3688   0.0000
+## (Intercept)   0.6075     0.0102 59.3118   0.0000
+```
+
+---
+
+# Predictions of a logit-normal regression: Method 1
+
+
+```r
+exams.df = exams.df %&gt;%
+  mutate(pred.logit.1 = fitted(logit.1.fit) * 100,
+         resid.logit.1 = exam.raw - pred.logit.1)
+```
+
+.center[
+![](hedw2020_presentation_files/figure-html/plot_logit_1_preds-1.png)&lt;!-- --&gt;
+]
+
+---
+
+# Fitting a logit-normal regression: Method 2
+
+
+```r
+library(logitnorm)
+logit.2.fit = lm(logit(exam.raw.offset) ~ battery + followers +
+                   skywalker + left + test.1 + test.2 + test.3,
+                 data = exams.df)
+round(coef(summary(logit.2.fit)), 4)
+```
+
+```
+##             Estimate Std. Error t value Pr(&gt;|t|)
+## (Intercept)  -0.0463     0.0428 -1.0801   0.2802
+## battery      -0.0019     0.0288 -0.0646   0.9485
+## followers     0.0782     0.0281  2.7853   0.0054
+## skywalker     0.0988     0.0563  1.7558   0.0792
+## left         -0.0296     0.1196 -0.2475   0.8045
+## test.1        0.1387     0.0399  3.4801   0.0005
+## test.2        0.7318     0.0474 15.4332   0.0000
+## test.3        2.3920     0.0449 53.3240   0.0000
+```
+
+---
+
+# Predictions of a logit-normal regression: Method 2
+
+
+```r
+exams.df = exams.df %&gt;%
+  mutate(pred.logit.2 = invlogit(unname(logit.2.fit$fitted.values))
+                        * 100,
+         resid.logit.2 = exam.raw - pred.logit.2)
+```
+
+---
+
+# Predictions of a logit-normal regression: Method 2
+
+.center[
+![](hedw2020_presentation_files/figure-html/plot_logit_2_preds-1.png)&lt;!-- --&gt;
+]
+
+---
+
+class: inverse, center, middle
+
+# Beta regression
+
+---
+
+# Beta regression
+
+`$$z_i: \mbox{student's true knowledge/ability}$$`
+
+`$$z_i = \alpha + \beta x_i$$`
+
+`$$\mu_i = \mbox{logit}^{-1}(z_i)$$`
+
+`$$\frac{y_i}{100} \sim \mbox{Beta}(\mu_i \phi, (1 - \mu_i) \phi)$$`
+
+---
+
+# Beta distributions
+
+.center[
+![](hedw2020_presentation_files/figure-html/plot_beta_distributions-1.png)&lt;!-- --&gt;
+]
+
+---
+
+# Fitting a beta regression
+
+
+```r
+library(betareg)
+beta.fit = betareg(exam.raw.offset ~ battery + followers +
+                     skywalker + left + test.1 + test.2 + test.3,
+                   data = exams.df,
+                   link = "logit", link.phi = "log")
+round(coef(summary(beta.fit))$mean, 4)
+```
+
+```
+##             Estimate Std. Error z value Pr(&gt;|z|)
+## (Intercept)   0.3331     0.0212 15.6909   0.0000
+## battery       0.0432     0.0142  3.0446   0.0023
+## followers     0.0151     0.0138  1.0961   0.2730
+## skywalker    -0.0109     0.0277 -0.3927   0.6946
+## left          0.0603     0.0594  1.0155   0.3099
+## test.1        0.1259     0.0200  6.2804   0.0000
+## test.2        0.3323     0.0234 14.2035   0.0000
+## test.3        1.1356     0.0235 48.3989   0.0000
+```
+
+---
+
+# Predictions of a beta regression
+
+
+```r
+exams.df = exams.df %&gt;%
+  mutate(pred.beta = unname(beta.fit$fitted.values) * 100,
+         resid.beta = exam.raw - pred.beta)
+```
+
+.center[
+![](hedw2020_presentation_files/figure-html/plot_beta_preds-1.png)&lt;!-- --&gt;
+]
+
+---
+
+class: inverse, center, middle
+
+# Comparing regression types
+
+---
+
+# Comparing regression types: Parameter estimates
+
+.center[
+![](hedw2020_presentation_files/figure-html/plot_parameters-1.png)&lt;!-- --&gt;
+]
+
+---
+
+# Comparing regression types: Predictions
+
+.center[
+![](hedw2020_presentation_files/figure-html/plot_predictions-1.png)&lt;!-- --&gt;
+]
+
+---
+
+# Comparing regression types: Residuals
+
+.center[
+![](hedw2020_presentation_files/figure-html/plot_residuals-1.png)&lt;!-- --&gt;
+]
+
+---
+
+# Comparing regression types: Simulated datasets
+
++ I simulated score as a function of "GPA" with known parameters
+
++ Simulations varied along several dimensions
+
+    + Average score: mid (0.5), high (0.8)
+    
+    + Standard deviation of scores: narrow (0.2), wide (0.5)
+    
+    + Number of observations: 100, 500
+    
+    + Strength of association between GPA and score (5 steps)
+    
+    + Distribution that generated score from GPA (censored, logit-normal, beta)
+
++ 100 simulated datasets per simulation type; fit four models to each
+
+---
+
+# Comparing regression types: Simulated datasets
+
+.center[
+&lt;img src="images/simulated_dataset_mid_wide_100.png" width="80%" /&gt;
+]
+
+---
+
+# Comparing regression types: Simulated datasets
+
+.center[
+&lt;img src="images/simulated_dataset_mid_wide_500.png" width="80%" /&gt;
+]
+
+---
+
+# Comparing regression types: Simulated datasets
+
+.center[
+&lt;img src="images/simulated_dataset_high_wide_500.png" width="80%" /&gt;
+]
+
+---
+
+# Comparing regression types: Simulated datasets
+
+.center[
+&lt;img src="images/simulated_dataset_high_narrow_500.png" width="80%" /&gt;
+]
+
+---
+
+# Comparing regression types: Simulated datasets
+
+.center[
+&lt;img src="images/simulated_datasets.png" width="80%" /&gt;
+]
+
+---
+
+# Comparing regression types: Simulated datasets
+
+.center[
+&lt;img src="images/significant_effects_mid_wide_500.png" width="80%" /&gt;
+]
+
+---
+
+# Comparing regression types: Simulated datasets
+
+.center[
+&lt;img src="images/significant_effects.png" width="90%" /&gt;
+]
+
+---
+
+# Comparing regression types: Simulated datasets
+
+.center[
+&lt;img src="images/residuals.png" width="100%" /&gt;
+]
+
+---
+
+class: inverse, center, middle
+
+# Ordered logistic regression
+
+---
+
+# Discrete ordered responses
+
+.center[
+![](hedw2020_presentation_files/figure-html/plot_grades-1.png)&lt;!-- --&gt;
+]
+
+---
+
+# Fitting a classical linear regression
+
+
+```r
+discrete.normal.fit = lm(as.numeric(exam.grade) ~ battery +
+                           followers + skywalker + left + test.1 +
+                           test.2 + test.3,
+                         data = exams.df)
+round(coef(summary(discrete.normal.fit)), 4)
+```
+
+```
+##             Estimate Std. Error  t value Pr(&gt;|t|)
+## (Intercept)   2.8724     0.0228 126.0445   0.0000
+## battery       0.1169     0.0153   7.6321   0.0000
+## followers    -0.0373     0.0149  -2.4960   0.0126
+## skywalker    -0.2107     0.0299  -7.0427   0.0000
+## left          0.0340     0.0636   0.5338   0.5935
+## test.1        0.2472     0.0212  11.6613   0.0000
+## test.2        0.3353     0.0252  13.2974   0.0000
+## test.3        0.4919     0.0239  20.6177   0.0000
+```
+
+---
+
+# Predictions of a classical linear regression
+
+
+```r
+exams.df$pred.discrete.normal =
+  round(discrete.normal.fit$fitted.values)
+```
+
+.center[
+![](hedw2020_presentation_files/figure-html/plot_discrete_normal_preds-1.png)&lt;!-- --&gt;
+]
+
+---
+
+# Logistic regression
+
+`$$z_i: \mbox{student's performance}$$`
+
+`$$z_i \sim \mbox{Logistic}(\alpha + \beta x_i)$$`
+
+`$$y_i: \mbox{whether the student passed}$$`
+
+`$$P(y_i = 1) = P(z_i &gt; 0)$$`
+
+.center[
+![](hedw2020_presentation_files/figure-html/logistic_regression_schema-1.png)&lt;!-- --&gt;
+]
+
+---
+
+# Ordered logistic regression
+
+`$$z_i: \mbox{student's performance}$$`
+
+`$$z_i \sim \mbox{Logistic}(\alpha + \beta x_i)$$`
+
+`$$y_i: \mbox{student's grade}$$`
+
+`$$P(y_i = B) = P(z_i &gt; c_{C|B} \mbox{ and } z_i &lt;= c_{B|A})$$`
+
+.center[
+![](hedw2020_presentation_files/figure-html/ordered_logistic_regression_schema-1.png)&lt;!-- --&gt;
+]
+
+---
+
+# Fitting an ordered logistic regression
+
+
+```r
+library(MASS)
+ordered.logistic.fit = polr(exam.grade ~ battery + followers +
+                              skywalker + left + test.1 + test.2 +
+                              test.3,
+                            data = exams.df)
+round(coef(summary(ordered.logistic.fit)), 4)
+```
+
+```
+##             Value Std. Error  t value
+## battery    0.1523     0.0326   4.6768
+## followers  0.0100     0.0312   0.3200
+## skywalker -0.2495     0.0619  -4.0291
+## left       0.0183     0.1375   0.1333
+## test.1     0.9569     0.0614  15.5799
+## test.2     1.2242     0.0670  18.2774
+## test.3     1.7485     0.0734  23.8085
+## F|D       -1.3034     0.0642 -20.2982
+## D|C        0.1715     0.0599   2.8646
+## C|B        1.7379     0.0651  26.6804
+## B|A        3.7776     0.0813  46.4417
+```
+
+---
+
+# Predictions of an ordered logistic regression
+
+
+```r
+exams.df$pred.ordered.logistic = apply(
+  ordered.logistic.fit$fitted.values,
+  1,
+  function(x) { c("F", "D", "C", "B", "A")[which(x == max(x))] }
+) %&gt;%
+  fct_relevel("F", "D", "C", "B", "A")
+```
+
+---
+
+# Predictions of an ordered logistic regression
+
+.center[
+![](hedw2020_presentation_files/figure-html/plot_ordered_logistic_preds-1.png)&lt;!-- --&gt;
+]
+
+---
+
+# Latent variable and actual scores
+
+
+```r
+exams.df$latent.ordered.logistic = ordered.logistic.fit$lp
+```
+
+.center[
+![](hedw2020_presentation_files/figure-html/plot_ordered_logistic_latent-1.png)&lt;!-- --&gt;
+]
+
+---
+
+class: inverse, center, middle
+
+# Multinomial logistic regression
+
+---
+
+# Discrete unordered responses
+
+.center[
+![](hedw2020_presentation_files/figure-html/plot_days-1.png)&lt;!-- --&gt;
+]
+
+---
+
+# Multinomial logistic regression
+
+`$$z_{ik}: \mbox{propensity of observation } i \mbox{ to fall into category } k$$`
+
+`$$z_{ik} = \Bigg\{\begin{array}{ll} 0 &amp; k = 1 \\ \alpha_k + \beta_k x_{ik} &amp; k &gt; 1 \end{array}$$`
+
+`$$P(y_i = k) = \frac{e^{z_{ik}}}{\sum_{k = 1}^K e^{z_{ik}}}$$`
+
+---
+
+# Multinomial logistic regression
+
+
+
+&lt;img src="hedw2020_presentation_files/figure-html/plot_multi_schema-1.png" style="display: block; margin: auto;" /&gt;
+
+---
+
+# Fitting a multinomial logistic regression
+
+
+```r
+# Fit a model in R.
+library(nnet)
+multi.fit = multinom(days ~ battery + followers + skywalker + left,
+                     data = exams.df)
+round(coef(summary(multi.fit)), 4)
+```
+
+---
+
+# Predictions of a multinomial logistic regression
+
+
+```r
+exams.df$pred.multi = apply(
+  multi.fit$fitted.values,
+  1,
+  function(x) { c("Online", "MWF", "TR")[which(x == max(x))] }
+) %&gt;%
+  fct_relevel("Online", "MWF", "TR")
+```
+
+---
+
+# Predictions of a multinomial logistic regression
+
+.center[
+&lt;img src="hedw2020_presentation_files/figure-html/plot_multi_preds-1.png" style="display: block; margin: auto;" /&gt;
+]
+    </textarea>
+<style data-target="print-only">@media screen {.remark-slide-container{display:block;}.remark-slide-scaler{box-shadow:none;}}</style>
+<script src="https://remarkjs.com/downloads/remark-latest.min.js"></script>
+<script>var slideshow = remark.create({
+"highlightStyle": "github",
+"highlightLines": true,
+"countIncrementalSlides": false
+});
+if (window.HTMLWidgets) slideshow.on('afterShowSlide', function (slide) {
+  window.dispatchEvent(new Event('resize'));
+});
+(function(d) {
+  var s = d.createElement("style"), r = d.querySelector(".remark-slide-scaler");
+  if (!r) return;
+  s.type = "text/css"; s.innerHTML = "@page {size: " + r.style.width + " " + r.style.height +"; }";
+  d.head.appendChild(s);
+})(document);
+
+(function(d) {
+  var el = d.getElementsByClassName("remark-slides-area");
+  if (!el) return;
+  var slide, slides = slideshow.getSlides(), els = el[0].children;
+  for (var i = 1; i < slides.length; i++) {
+    slide = slides[i];
+    if (slide.properties.continued === "true" || slide.properties.count === "false") {
+      els[i - 1].className += ' has-continuation';
+    }
+  }
+  var s = d.createElement("style");
+  s.type = "text/css"; s.innerHTML = "@media print { .has-continuation { display: none; } }";
+  d.head.appendChild(s);
+})(document);
+// delete the temporary CSS (for displaying all slides initially) when the user
+// starts to view slides
+(function() {
+  var deleted = false;
+  slideshow.on('beforeShowSlide', function(slide) {
+    if (deleted) return;
+    var sheets = document.styleSheets, node;
+    for (var i = 0; i < sheets.length; i++) {
+      node = sheets[i].ownerNode;
+      if (node.dataset["target"] !== "print-only") continue;
+      node.parentNode.removeChild(node);
+    }
+    deleted = true;
+  });
+})();
+// adds .remark-code-has-line-highlighted class to <pre> parent elements
+// of code chunks containing highlighted lines with class .remark-code-line-highlighted
+(function(d) {
+  const hlines = d.querySelectorAll('.remark-code-line-highlighted');
+  const preParents = [];
+  const findPreParent = function(line, p = 0) {
+    if (p > 1) return null; // traverse up no further than grandparent
+    const el = line.parentElement;
+    return el.tagName === "PRE" ? el : findPreParent(el, ++p);
+  };
+
+  for (let line of hlines) {
+    let pre = findPreParent(line);
+    if (pre && !preParents.includes(pre)) preParents.push(pre);
+  }
+  preParents.forEach(p => p.classList.add("remark-code-has-line-highlighted"));
+})(document);</script>
+
+<script>
+(function() {
+  var links = document.getElementsByTagName('a');
+  for (var i = 0; i < links.length; i++) {
+    if (/^(https?:)?\/\//.test(links[i].getAttribute('href'))) {
+      links[i].target = '_blank';
+    }
+  }
+})();
+</script>
+
+<script>
+slideshow._releaseMath = function(el) {
+  var i, text, code, codes = el.getElementsByTagName('code');
+  for (i = 0; i < codes.length;) {
+    code = codes[i];
+    if (code.parentNode.tagName !== 'PRE' && code.childElementCount === 0) {
+      text = code.textContent;
+      if (/^\\\((.|\s)+\\\)$/.test(text) || /^\\\[(.|\s)+\\\]$/.test(text) ||
+          /^\$\$(.|\s)+\$\$$/.test(text) ||
+          /^\\begin\{([^}]+)\}(.|\s)+\\end\{[^}]+\}$/.test(text)) {
+        code.outerHTML = code.innerHTML;  // remove <code></code>
+        continue;
+      }
+    }
+    i++;
+  }
+};
+slideshow._releaseMath(document);
+</script>
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+(function () {
+  var script = document.createElement('script');
+  script.type = 'text/javascript';
+  script.src  = 'https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-MML-AM_CHTML';
+  if (location.protocol !== 'file:' && /^https?:/.test(script.src))
+    script.src  = script.src.replace(/^https?:/, '');
+  document.getElementsByTagName('head')[0].appendChild(script);
+})();
+</script>
+  </body>
+</html>
