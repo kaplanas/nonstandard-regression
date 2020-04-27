@@ -45,9 +45,9 @@ But in the real world, we often want to build regression models for dependent va
     + Which major did the student choose?
     + Which course section did the student register for?
 
-In what follows, we will review regression techniques for each of these types of dependent variables.  Sample code for each model shows a fit with an R package, plus Stan code for a fully customizable Bayesian implementation (using the `rstan` package to interface with R).  By default, this markdown document does *not* run the Stan models; to do so (if you're compiling the document yourself), use the `Knit with Parameters...` option and check `eval.stan`.
+In what follows, we will review regression techniques for each of these types of dependent variables.  Sample code for each model shows a fit with an R package, plus Stan code for a fully customizable Bayesian implementation (using the `rstan` package to interface with R).  All code assumes you have loaded the `tidyverse`; other packages are introduced as needed.
 
-All code assumes you have loaded the `tidyverse`; other packages are introduced as needed.
+To reproduce this document yourself, download `nonstandard_regression.Rmd`, `fake_dataset.csv`, and all the `.png` files in the `images` folder from [the GitHub page](https://github.com/kaplanas/nonstandard-regression/).  By default, this markdown document does *not* run the Stan models; to do so (if you're compiling the document yourself), use the `Knit with Parameters...` option and check `eval.stan`.  (You'll also need to download all the `.stan` files.)
 
 # Working dataset
 
@@ -592,7 +592,7 @@ logit.2.fit = lm(logit(exam.raw.offset) ~ battery + followers + skywalker +
 ```
 
 ```{r logit_fit_stan, eval = params$eval.stan, include = F}
-# Fit a model with Stan.
+# Fit a model with Stan (method 2 only).
 library(rstan)
 logit.stan.fit = stan(file = "logit_model.stan",
                       data = score.stan.data,
@@ -633,7 +633,7 @@ round(coef(summary(logit.2.fit)), 4)
 ```
 
 ```{r logit_parameters_dummy_stan, eval = F, echo = T}
-# Parameters from the Stan model.
+# Parameters from the Stan model (method 2 only).
 library(tidybayes)
 params.logit.df = logit.stan.fit %>%
   gather_draws(beta[i]) %>%
@@ -665,7 +665,7 @@ round(coef(summary(logit.2.fit)), 4)
 ```
 
 ```{r logit_parameters_stan, eval = params$eval.stan, echo = F}
-# Parameters from the Stan model.
+# Parameters from the Stan model (method 2 only).
 library(tidybayes)
 params.logit.df = logit.stan.fit %>%
   gather_draws(beta[i]) %>%
@@ -703,7 +703,7 @@ exams.df = exams.df %>%
 ```
 
 ```{r logit_predictions_stan, eval = params$eval.stan, class.source = "fold-show"}
-# Predictions from the Stan model.
+# Predictions from the Stan model (method 2 only).
 exams.df = exams.df %>%
   mutate(pred.logit.stan = logit.stan.fit %>%
            gather_draws(y_pred[i]) %>%
@@ -751,7 +751,7 @@ exams.df %>%
 ```
 
 ```{r plot_logit_preds_stan, eval = params$eval.stan, fig.height = 3, fig.width = 5, fig.align = "center"}
-# Predictions from the Stan model.
+# Predictions from the Stan model (method 2 only).
 exams.df %>%
   ggplot(aes(x = pred.logit.stan, y = exam.raw)) +
   geom_point(alpha = 0.2) +
@@ -765,6 +765,12 @@ exams.df %>%
   theme(panel.border = element_blank(),
         axis.ticks = element_blank()) +
   ggtitle("Logit-normal regression (Bayesian): fitted vs. observed values")
+```
+
+#### Stan code
+
+```{r logit_stan_code, echo = F, comment = NA}
+writeLines(readLines("logit_model.stan"))
 ```
 
 ### Beta regression {.tabset}
@@ -912,6 +918,12 @@ exams.df %>%
   ggtitle("Beta regression (Bayesian): fitted vs. observed values")
 ```
 
+#### Stan code
+
+```{r beta_stan_code, echo = F, comment = NA}
+writeLines(readLines("beta_model.stan"))
+```
+
 ### Comparing the four models for the final exam dataset
 
 Fundamentally, all four of these models assume that $y$ is a (possibly non-linear) function of a linear combination of the predictor variables.  It's not surprising, then, that the fitted coefficients for the predictors are highly similar across all four models.  (The absolute values of the predictors differ, but their relative importance is clearly consistent.)
@@ -995,7 +1007,7 @@ exams.df %>%
 
 ### Comparing the four models via simulation
 
-To explore differences among the four models more systematically, I simulated datasets in which final exam score (scaled to 0-1) was a function of a single predictor variable (which I called "GPA", although the variable was actually $N(0, 1)$ distributed).  The code that generated the simulations and produced the graphs that follow is available [here](https://github.com/kaplanas/nonstandard-regression).  The simulations varied along several dimensions:
+To explore differences among the four models more systematically, I simulated datasets in which final exam score (scaled to 0-1) was a function of a single predictor variable (which I called "GPA", although the variable was actually $N(0, 1)$ distributed).  The code that generated the simulations that follow is available [here](https://github.com/kaplanas/nonstandard-regression) as `01-create_datasets.R`; graphs are produced by the code in `02-evaluate_models.R`.  The simulations varied along several dimensions:
 
 + Average score: mid (0.5), high (0.8)
 + Standard deviation of scores: narrow (0.2), wide (0.5)
@@ -1175,6 +1187,12 @@ exams.df %>%
   ggtitle("Normal regression (Bayesian): fitted vs. observed")
 ```
 
+#### Stan code
+
+```{r discrete_normal_stan_code, echo = F, comment = NA}
+writeLines(readLines("discrete_normal_model.stan"))
+```
+
 ### Ordered logistic regression {.tabset}
 
 Ordered logistic regression models each discrete outcome as a probabilistic function of a latent variable $z$ with a logistic distribution.  The idea is that $z$ is a continuous variable that represents the true "scale" in question; here, that scale is the student's performance on the exam.  In other situations, the scale may be more abstract; for example, when predicting responses on a Likert scale in a survey ("Strongly agree", "Somewhat agree", "Neutral", etc.), $z$ might represent the respondent's true level of agreement.  As usual, $z$ is a function of the predictor variables $x$.
@@ -1336,6 +1354,12 @@ exams.df %>%
   theme(legend.position = "none",
         panel.border = element_blank(),
         axis.ticks = element_blank())
+```
+
+#### Stan code
+
+```{r ordered_logistic_stan_code, echo = F, comment = NA}
+writeLines(readLines("ordered_logistic_model.stan"))
 ```
 
 ### Evaluating the two models for the final exam dataset
@@ -1561,5 +1585,11 @@ exams.df %>%
   theme(legend.position = "none",
         panel.border = element_blank(),
         axis.ticks = element_blank())
+```
+
+#### Stan code
+
+```{r multi_stan_code, echo = F, comment = NA}
+writeLines(readLines("multi_model.stan"))
 ```
 
