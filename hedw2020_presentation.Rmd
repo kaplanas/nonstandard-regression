@@ -66,7 +66,7 @@ class: inverse, center, middle
 
 # Outline
 
-+ Types of dependent variables
++ Types of non-standard dependent variables
 
 + Working dataset
 
@@ -90,11 +90,11 @@ class: inverse, center, middle
 
 class: inverse, center, middle
 
-# Types of dependent variables
+# Types of non-standard dependent variables
 
 ---
 
-# Types of dependent variables
+# Types of non-standard dependent variables
 
 + Bounded dependent variables
 
@@ -1001,7 +1001,7 @@ $$z_i \sim \mbox{Logistic}(\alpha + \beta x_i)$$
 
 $$y_i: \mbox{student's grade}$$
 
-$$P(y_i = B) = P(z_i > c_{C|B} \mbox{ and } z_i <= c_{B|A})$$
+$$P(y_i = B) = P(z_i > c_{C|B} \mbox{ and } z_i \leq c_{B|A})$$
 
 .center[
 ```{r ordered_logistic_regression_schema, fig.height = 4.5, fig.width = 7}
