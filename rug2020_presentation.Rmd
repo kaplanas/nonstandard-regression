@@ -210,7 +210,7 @@ class: inverse, center, middle
 # Dataset: Final exams
 
 .center[
-```{r exam_score_distribution}
+```{r exam_score_distribution, fig.height = 6, fig.width = 8}
 exams.df %>%
   ggplot(aes(x = exam.raw)) +
   geom_histogram() +
@@ -383,7 +383,10 @@ exams.df %>%
                      labels = c("No", "Yes"),
                      values = c(0.2, 1)) +
   theme(panel.border = element_blank(),
-        axis.ticks = element_blank())
+        axis.ticks = element_blank(),
+        axis.text = element_text(size = 10),
+        axis.title.x = element_text(size = 14),
+        axis.title.y = element_text(size = 14))
 ```
 ]
 
@@ -495,7 +498,10 @@ exams.df %>%
                      limits = c(0, 100)) +
   theme(legend.position = "none",
         panel.border = element_blank(),
-        axis.ticks = element_blank())
+        axis.ticks = element_blank(),
+        axis.text = element_text(size = 10),
+        axis.title.x = element_text(size = 14),
+        axis.title.y = element_text(size = 14))
 ```
 ]
 
@@ -626,7 +632,10 @@ exams.df %>%
                      limits = c(0, 100)) +
   theme(legend.position = "none",
         panel.border = element_blank(),
-        axis.ticks = element_blank())
+        axis.ticks = element_blank(),
+        axis.text = element_text(size = 10),
+        axis.title.x = element_text(size = 14),
+        axis.title.y = element_text(size = 14))
 ```
 ]
 
@@ -671,7 +680,10 @@ exams.df %>%
                      limits = c(0, 100)) +
   theme(legend.position = "none",
         panel.border = element_blank(),
-        axis.ticks = element_blank())
+        axis.ticks = element_blank(),
+        axis.text = element_text(size = 10),
+        axis.title.x = element_text(size = 14),
+        axis.title.y = element_text(size = 14))
 ```
 ]
 
@@ -756,7 +768,10 @@ exams.df %>%
                      limits = c(0, 100)) +
   theme(legend.position = "none",
         panel.border = element_blank(),
-        axis.ticks = element_blank())
+        axis.ticks = element_blank(),
+        axis.text = element_text(size = 10),
+        axis.title.x = element_text(size = 14),
+        axis.title.y = element_text(size = 14))
 ```
 ]
 
@@ -801,7 +816,8 @@ bind_rows(
   geom_hline(yintercept = 0) +
   scale_x_discrete("Parameter") +
   facet_wrap(~ model, scales = "free_x") +
-  coord_flip()
+  coord_flip() +
+  theme(axis.text = element_text(size = 10))
 ```
 ]
 
@@ -962,7 +978,7 @@ class: inverse, center, middle
 # Discrete ordered responses
 
 .center[
-```{r plot_grades}
+```{r plot_grades, fig.height = 6, fig.width = 8}
 exams.df %>%
   ggplot(aes(x = exam.grade)) +
   geom_bar() +
@@ -1010,7 +1026,10 @@ exams.df %>%
   scale_color_manual(values = c("black", "red")) +
   theme(legend.position = "none",
         panel.border = element_blank(),
-        axis.ticks = element_blank())
+        axis.ticks = element_blank(),
+        axis.text = element_text(size = 10),
+        axis.title.x = element_text(size = 14),
+        axis.title.y = element_text(size = 14))
 ```
 ]
 
@@ -1067,7 +1086,7 @@ data.frame(z = seq(-5, 5, 0.01)) %>%
   geom_vline(xintercept = c(-3, -2, -0.5, 2)) +
   annotate("label", x = 0.7, y = 0.1,
            label = eval(bquote(expression(P(y[i] == B) == .(round(plogis(2) - plogis(-0.5), 2)))))) +
-  scale_x_continuous(expression(z[i] == alpha + beta*x[i]),
+  scale_x_continuous(expression(z[i] == beta*x[i]),
                      breaks = c(-3, -2, -0.5, 2),
                      labels = c("F|D", "D|C", "C|B", "B|A")) +
   scale_y_continuous("") +
@@ -1117,7 +1136,10 @@ exams.df %>%
   scale_y_discrete("Predicted final exam grade") +
   theme(legend.position = "none",
         panel.border = element_blank(),
-        axis.ticks = element_blank())
+        axis.ticks = element_blank(),
+        axis.text = element_text(size = 10),
+        axis.title.x = element_text(size = 14),
+        axis.title.y = element_text(size = 14))
 ```
 ]
 
@@ -1181,7 +1203,7 @@ class: inverse, center, middle
 # Discrete unordered responses
 
 .center[
-```{r plot_days}
+```{r plot_days, fig.height = 6, fig.width = 8}
 exams.df %>%
   ggplot(aes(x = days)) +
   geom_bar() +
@@ -1273,7 +1295,10 @@ exams.df %>%
   scale_y_discrete("Predicted meeting pattern") +
   theme(legend.position = "none",
         panel.border = element_blank(),
-        axis.ticks = element_blank())
+        axis.ticks = element_blank(),
+        axis.text = element_text(size = 10),
+        axis.title.x = element_text(size = 14),
+        axis.title.y = element_text(size = 14))
 ```
 ]
 
