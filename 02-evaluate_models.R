@@ -82,23 +82,25 @@ sims.df %>%
   scale_x_continuous("GPA (centered and standardized)", breaks = seq(-5, 5, 1)) +
   scale_y_continuous("Score") +
   facet_grid(location + distribution ~ scale + n.obs) +
+  coord_cartesian(ylim = c(0, 1)) +
   ggtitle("Sample simulated datasets for the strongest effect of GPA")
 
 # Sample datasets.
 sims.df %>%
   filter(continuous == 0.05 &
            sub.sim.id == 1 &
-           scale == "narrow" &
-           location == "high" &
+           scale == "wide" &
+           location == "mid" &
            distribution == "censored" &
-           n.obs == 500) %>%
+           n.obs == 100) %>%
   unnest(data) %>%
   ggplot(aes(x = cs.gpa, y = score)) +
   geom_point(alpha = 0.1) +
   stat_smooth(color = "#00A8E1", fill = "#00A8E1") +
   scale_x_continuous("GPA (centered and standardized)", breaks = seq(-5, 5, 1)) +
   scale_y_continuous("Score") +
-  ggtitle("Average score: high\nStandard deviation: narrow\nObservations: 500\nDistribution: censored")
+  coord_cartesian(ylim = c(0, 1)) +
+  ggtitle("Average score: mid\nError term: wide\nObservations: 100\nDistribution: censored")
 
 ###########################################
 # Compare fitted parameters across models #
@@ -184,7 +186,7 @@ fitted.params.df %>%
                       breaks = c(1, 3),
                       labels = c("No", "Yes")) +
   scale_alpha_identity() +
-  ggtitle("Frequency with which models fit to simulated datasets find a significant effect of GPA\nAverage score: mid\nStandard deviation: wide\nObservations: 500\nDistribution: censored")
+  ggtitle("Frequency with which models fit to simulated datasets find a significant effect of GPA\nAverage score: mid\nError term: wide\nObservations: 500\nDistribution: censored")
 
 #####################################
 # Compare predictions across models #
@@ -257,7 +259,7 @@ preds.df %>%
   geom_boxplot(color = "white", width = 0.2, outlier.alpha = 0) +
   stat_summary(fun.y = "median", geom = "point") +
   scale_x_discrete("Model fit to data", limits = rev(levels(preds.df$fit))) +
-  scale_y_continuous("Residual") +
+  scale_y_continuous("Residuals") +
   facet_grid(location + distribution ~ scale + n.obs) +
   coord_flip() +
   theme(legend.position = "none") +

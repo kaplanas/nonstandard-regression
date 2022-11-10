@@ -1,7 +1,7 @@
 ---
 title: "Doing Regression When Your Dependent Variables Aren't Well Behaved"
 author: "Abby Kaplan"
-date: "March 24, 2020"
+date: "March 24, 2020<br/>Updated November 9, 2022"
 output:
   html_document:
     code_folding: hide
@@ -16,7 +16,7 @@ if(params$eval.stan) {
   rstan_options(auto_write = T)
 }
 options(htmltools.dir.version = F)
-knitr::opts_chunk$set(message = F, warning = F, error = F)
+knitr::opts_chunk$set(message = F, warning = F, error = F, echo = T)
 blues = c("#00A8E1", "#009CDE", "#0077C8", "#003865", "#BCDDF4")
 yellows = c("#FFCD00", "#EAAA00", "#CC8A00", "#833921", "#FFEFBD")
 theme_set(theme_bw() +
@@ -73,10 +73,11 @@ Final exam scores are bounded between 0 and 100.
 exams.df %>%
   ggplot(aes(x = exam.raw)) +
   geom_histogram() +
-  scale_x_continuous("Final exam score") +
-  scale_y_continuous("Number of observations") +
-  ggtitle("Distribution of final exam scores")
+  labs(x = "Final exam score", y = "Number of observations",
+       title = "Distribution of final exam scores")
 ```
+
+(We see a large number of scores at precisely zero.  These are probably cases where the student didn't take the exam at all.  The models below could be improved by doing two-stage regression: first predict whether the student scored above 0; then, for those students, predict the actual score.  But I haven't done this here, to keep the focus on bounded regression itself.)
 
 ### Some initial cleaning
 
@@ -143,8 +144,6 @@ normal.df %>%
                color = yellows[4]) +
   annotate("label", x = 0.4, y = 2.15, label = expression(epsilon),
            size = 7, color = yellows[4]) +
-  scale_x_continuous() +
-  scale_y_continuous() +
   scale_alpha_identity() +
   theme(panel.border = element_blank(),
         axis.ticks = element_blank())
@@ -165,8 +164,7 @@ normal.df %>%
                         dnorm(x, mean = 0, sd = 0.4) * nrow(normal.df) * 0.25
                       },
                 size = 2) +
-  scale_x_continuous(expression(epsilon)) +
-  scale_y_continuous("Number of data points")
+  labs(x = expression(epsilon), y = "Number of data points")
 ```
 
 </div>
@@ -192,7 +190,7 @@ normal.df %>%
         axis.ticks = element_blank())
 ```
 
-In practice, of course, the fact that the model is capable of predicting impossible values may not cause problems.  If we know that extreme values of $x$ are impossible too, then the issue simply won't come up.  (And even if extreme values of $x$ *are* possible, extrapolating too far beyond the attested observations is a decidedly bad idea.)
+In practice, of course, the fact that the model is capable of predicting impossible values may not cause problems.  If we know that extreme values of $x$ are impossible too, then the issue simply won't come up.  (And even if extreme values of $x$ *are* possible, extrapolating too far beyond the attested observations is a bad idea; we shouldn't be doing that anyway.)
 
 But if we have attested observations very close to the hard limits on $y$, then we very well may find ourselves in a situation where the classical model leads us to predict impossible values of $y$ for reasonable values of $x$.  Exam scores are a case in point: there are many observations at 0, and a sizeable number close to 100; we want to be able to predict attested values without predicting unattested ones.
 
@@ -225,12 +223,12 @@ normal.stan.fit = stan(file = "normal_model.stan",
 
 #### Summarize fitted parameters
 
-```{r normal_parameters}
+```{r normal_parameters, class.source = "fold-show"}
 # Parameters from the R model.
 round(coef(summary(normal.fit)), 4)
 ```
 
-```{r normal_parameters_stan, eval = params$eval.stan}
+```{r normal_parameters_stan, eval = params$eval.stan, class.source = "fold-show"}
 # Parameters from the Stan model.
 library(tidybayes)
 params.normal.df = normal.stan.fit %>%
@@ -260,8 +258,8 @@ params.normal.df
 # Predictions from the R model.
 exams.df = exams.df %>%
   mutate(pred.normal = normal.fit$fitted.values,
-         pred.normal.out.of.bounds = pred.normal > 100 | pred.normal < 0) %>%
-  mutate(pred.normal = case_when(pred.normal > 100 ~ 100,
+         pred.normal.out.of.bounds = pred.normal > 100 | pred.normal < 0,
+         pred.normal = case_when(pred.normal > 100 ~ 100,
                                  pred.normal < 0 ~ 0,
                                  T ~ pred.normal),
          resid.normal = exam.raw - pred.normal)
@@ -275,10 +273,10 @@ exams.df = exams.df %>%
            group_by(i) %>%
            summarize(pred = median(.value)) %>%
            arrange(i) %>%
-           pull(pred)) %>%
-  mutate(pred.normal.stan.out.of.bounds = pred.normal.stan > 100 |
-                                          pred.normal.stan < 0) %>%
-  mutate(pred.normal.stan = case_when(pred.normal.stan > 100 ~ 100,
+           pull(pred),
+         pred.normal.stan.out.of.bounds = pred.normal.stan > 100 |
+                                          pred.normal.stan < 0,
+         pred.normal.stan = case_when(pred.normal.stan > 100 ~ 100,
                                       pred.normal.stan < 0 ~ 0,
                                       T ~ pred.normal.stan),
          resid.normal.stan = exam.raw - pred.normal.stan)
@@ -286,7 +284,7 @@ exams.df = exams.df %>%
 
 #### Plot fitted values
 
-```{r plot_normal_preds, fig.height = 3, fig.width = 7, fig.align = "center"}
+```{r plot_normal_preds, fig.height = 3.5, fig.width = 7, fig.align = "center"}
 # Predictions from the R model.
 exams.df %>%
   mutate(alert = pred.normal > 100 | pred.normal < 0) %>%
@@ -297,22 +295,18 @@ exams.df %>%
   geom_abline(slope = 1, intercept = 0, color = blues[1]) +
   geom_hline(yintercept = 0) +
   geom_vline(xintercept = 0) +
-  scale_x_continuous("Predicted final exam score",
-                     limits = c(0, 100)) +
-  scale_y_continuous("Observed final exam score",
-                     limits = c(-10, 100)) +
-  scale_color_manual("Prediction outside 0-100",
-                     labels = c("No", "Yes"),
-                     values = c("black", "red")) +
-  scale_alpha_manual("Prediction outside 0-100",
-                     labels = c("No", "Yes"),
-                     values = c(0.2, 1)) +
+  scale_x_continuous(limits = c(0, 100)) +
+  scale_y_continuous(limits = c(-10, 100)) +
+  scale_color_manual(labels = c("No", "Yes"), values = c("black", "red")) +
+  scale_alpha_manual(labels = c("No", "Yes"), values = c(0.2, 1)) +
   theme(panel.border = element_blank(),
         axis.ticks = element_blank()) +
-  ggtitle("Normal regression: fitted vs. observed values")
+  labs(x = "Predicted final exam score", y = "Observed final exam score",
+       color = "Prediction outside 0-100", alpha = "Prediction outside 0-100",
+       title = "Normal regression", subtitle = "Fitted vs. observed values")
 ```
 
-```{r plot_normal_preds_stan, eval = params$eval.stan, fig.height = 3, fig.width = 7, fig.align = "center"}
+```{r plot_normal_preds_stan, eval = params$eval.stan, fig.height = 3.5, fig.width = 7, fig.align = "center"}
 # Predictions from the Stan model.
 exams.df %>%
   mutate(alert = pred.normal.stan > 100 | pred.normal.stan < 0) %>%
@@ -323,19 +317,15 @@ exams.df %>%
   geom_abline(slope = 1, intercept = 0, color = blues[1]) +
   geom_hline(yintercept = 0) +
   geom_vline(xintercept = 0) +
-  scale_x_continuous("Predicted final exam score",
-                     limits = c(0, 100)) +
-  scale_y_continuous("Observed final exam score",
-                     limits = c(-10, 100)) +
-  scale_color_manual("Prediction outside 0-100",
-                     labels = c("No", "Yes"),
-                     values = c("black", "red")) +
-  scale_alpha_manual("Prediction outside 0-100",
-                     labels = c("No", "Yes"),
-                     values = c(0.2, 1)) +
+  scale_x_continuous(limits = c(0, 100)) +
+  scale_y_continuous(limits = c(-10, 100)) +
+  scale_color_manual(labels = c("No", "Yes"), values = c("black", "red")) +
+  scale_alpha_manual(labels = c("No", "Yes"), values = c(0.2, 1)) +
   theme(panel.border = element_blank(),
         axis.ticks = element_blank()) +
-  ggtitle("Normal regression (Bayesian): fitted vs. observed values")
+  labs(x = "Predicted final exam score", y = "Observed final exam score",
+       color = "Prediction outside 0-100", alpha = "Prediction outside 0-100",
+       title = "Normal regression", subtitle = "Fitted vs. observed values")
 ```
 
 #### Stan code
@@ -355,7 +345,7 @@ $$z_i \sim N(\alpha + \beta x_i, \sigma)$$
 
 The observed values $y$ are truncated from $z$: they are 0 or 100 if $z$ falls below or above those bounds, and identical to $z$ otherwise.  Predictions of the censored model are predicted values of $z$; we can censor these fitted values to fall between 0 and 100, just as we did for the normal regression model.  (Fitted values in the R model using the `censReg` package are values of $z$; the code below censors them after extracting them from the model.  The Stan code censors fitted values as part of the model.)
 
-$$y_i = \Bigg\{\begin{array}{ll} 100 & z_i \geq 100 \\ 0 & z_i \leq 0 \\ z_i & 0 \lt z_i \lt 100 \end{array}$$
+$$y_i = \left\{\begin{array}{ll} 100 & z_i \geq 100 \\ 0 & z_i \leq 0 \\ z_i & 0 \lt z_i \lt 100 \end{array}\right.$$
 
 ```{r plot_censored_function, fig.height = 3, fig.width = 6, fig.align = "center", echo = F}
 data.frame(z = seq(-50, 150, 0.1)) %>%
@@ -364,9 +354,7 @@ data.frame(z = seq(-50, 150, 0.1)) %>%
                        T ~ z)) %>%
   ggplot(aes(x = z, y = y)) +
   geom_line() +
-  scale_x_continuous("z") +
-  scale_y_continuous("y") +
-  ggtitle("Latent and observed variables in a censored regression")
+  labs(x = "z", y = "y", title = "Latent and observed variables in a censored regression")
 ```
 
 ```{r plot_censored_distributions, fig.height = 5, fig.width = 7, fig.align = "center", echo = F}
@@ -383,13 +371,11 @@ expand.grid(
          mean.label = paste("alpha + beta*x == '", mean, "'", sep = "")) %>%
   ggplot(aes(x = y)) +
   geom_histogram() +
-  scale_x_continuous("y") +
-  scale_y_continuous("") +
   facet_grid(mean.label ~ sd.label, scales = "free",
              labeller = "label_parsed") +
   theme(axis.ticks.y = element_blank(),
         axis.text.y = element_blank()) +
-  ggtitle("Examples of censored normal distributions")
+  labs(x = "y", y = "", title = "Examples of censored normal distributions")
 ```
 
 #### Fit the model
@@ -413,12 +399,12 @@ censored.stan.fit = stan(file = "censored_model.stan",
 
 #### Summarize fitted parameters
 
-```{r censored_parameters}
+```{r censored_parameters, class.source = "fold-show"}
 # Parameters from the R model.
 round(coef(summary(censored.fit)), 4)
 ```
 
-```{r censored_parameters_stan, eval = params$eval.stan}
+```{r censored_parameters_stan, eval = params$eval.stan, class.source = "fold-show"}
 # Parameters from the Stan model.
 library(tidybayes)
 params.censored.df = censored.stan.fit %>%
@@ -467,13 +453,13 @@ exams.df = exams.df %>%
            group_by(i) %>%
            summarize(pred = median(.value)) %>%
            arrange(i) %>%
-           pull(pred)) %>%
-  mutate(resid.censored.stan = exam.raw - pred.censored.stan)
+           pull(pred),
+         resid.censored.stan = exam.raw - pred.censored.stan)
 ```
 
 #### Plot fitted values
 
-```{r plot_censored_preds, fig.height = 3, fig.width = 5, fig.align = "center"}
+```{r plot_censored_preds, fig.height = 3.5, fig.width = 5, fig.align = "center"}
 # Predictions from the R model.
 exams.df %>%
   ggplot(aes(x = pred.censored, y = exam.raw)) +
@@ -481,17 +467,16 @@ exams.df %>%
   geom_abline(slope = 1, intercept = 0, color = blues[1]) +
   geom_hline(yintercept = 0) +
   geom_vline(xintercept = 0) +
-  scale_x_continuous("Predicted final exam score",
-                     limits = c(0, 100)) +
-  scale_y_continuous("Observed final exam score",
-                     limits = c(0, 100)) +
+  scale_x_continuous(limits = c(0, 100)) +
+  scale_y_continuous(limits = c(0, 100)) +
   theme(legend.position = "none",
         panel.border = element_blank(),
         axis.ticks = element_blank()) +
-  ggtitle("Censored regression: fitted vs. observed values")
+  labs(x = "Predicted final exam score", y = "Observed final exam score",
+       title = "Censored regression", subtitle = "Fitted vs. observed values")
 ```
 
-```{r plot_censored_preds_stan, eval = params$eval.stan, fig.height = 3, fig.width = 5, fig.align = "center"}
+```{r plot_censored_preds_stan, eval = params$eval.stan, fig.height = 3.5, fig.width = 5, fig.align = "center"}
 # Predictions from the Stan model.
 exams.df %>%
   ggplot(aes(x = pred.censored.stan, y = exam.raw)) +
@@ -499,13 +484,13 @@ exams.df %>%
   geom_abline(slope = 1, intercept = 0, color = blues[1]) +
   geom_hline(yintercept = 0) +
   geom_vline(xintercept = 0) +
-  scale_x_continuous("Predicted final exam score",
-                     limits = c(0, 100)) +
-  scale_y_continuous("Observed final exam score",
-                     limits = c(-10, 100)) +
+  scale_x_continuous(limits = c(0, 100)) +
+  scale_y_continuous(limits = c(-10, 100)) +
   theme(panel.border = element_blank(),
         axis.ticks = element_blank()) +
-  ggtitle("Censored regression (Bayesian): fitted vs. observed values")
+  labs(x = "Predicted final exam score", y = "Observed final exam score",
+       title = "Censored regression (Bayesian)",
+       subtitle = "Fitted vs. observed values")
 ```
 
 #### Stan code
@@ -530,9 +515,8 @@ data.frame(z = seq(-5, 5, 0.01)) %>%
   mutate(y = invlogit(z)) %>%
   ggplot(aes(x = z, y = y)) +
   geom_line() +
-  scale_x_continuous("z") +
-  scale_y_continuous(expression(frac(y, 100))) +
-  ggtitle("Latent and observed variables in a logit-normal regression")
+  labs(x = "z", y = expression(frac(y, 100)),
+       title = "Latent and observed variables in a logit-normal regression")
 ```
 
 ```{r plot_logit_distributions, fig.height = 5, fig.width = 7, fig.align = "center", echo = F}
@@ -550,14 +534,13 @@ expand.grid(
                                   mean, max)) %>%
   ggplot(aes(x = y)) +
   geom_histogram() +
-  scale_x_continuous(expression(frac(y, 100))) +
-  scale_y_continuous("") +
   facet_grid(mean.label ~ sd.label, scales = "free",
              labeller = "label_parsed") +
   theme(axis.ticks.y = element_blank(),
         axis.text.y = element_blank(),
         axis.text.x = element_text(size = 10)) +
-  ggtitle("Examples of logit-normal distributions")
+  labs(x = expression(frac(y, 100)), y = "",
+       title = "Examples of logit-normal distributions")
 ```
 
 
@@ -591,15 +574,7 @@ logit.2.fit = lm(logit(exam.raw.offset) ~ battery + followers + skywalker +
                  data = exams.df)
 ```
 
-```{r logit_fit_stan, eval = params$eval.stan, include = F}
-# Fit a model with Stan (method 2 only).
-library(rstan)
-logit.stan.fit = stan(file = "logit_model.stan",
-                      data = score.stan.data,
-                      chains = 4, iter = 2000, cores = 4)
-```
-
-```{r logit_fit_dummy, eval = F, echo = T, class.source = "fold-show"}
+```{r logit_fit_dummy, eval = F, class.source = "fold-show"}
 # Method 1: fit a logit-normal regression directly to the observed values of y.
 library(gamlss)
 logit.1.fit = gamlss(exam.raw.offset ~ battery + followers + skywalker + left +
@@ -614,8 +589,8 @@ logit.2.fit = lm(logit(exam.raw.offset) ~ battery + followers + skywalker +
                  data = exams.df)
 ```
 
-```{r logit_fit_dummy_stan, eval = F, echo = T, class.source = "fold-show"}
-# Fit a model with Stan.
+```{r logit_fit_stan, eval = params$eval.stan, class.source = "fold-show"}
+# Fit a model with Stan (method 2 only).
 library(rstan)
 logit.stan.fit = stan(file = "logit_model.stan",
                       data = score.stan.data,
@@ -624,36 +599,12 @@ logit.stan.fit = stan(file = "logit_model.stan",
 
 #### Summarize fitted parameters
 
-```{r logit_parameters_dummy, eval = F, echo = T}
+```{r logit_parameters_dummy, eval = F, class.source = "fold-show"}
 # Parameters from the R model (method 1).
 round(summary(logit.1.fit), 4)
 
 # Parameters from the R model (method 2).
 round(coef(summary(logit.2.fit)), 4)
-```
-
-```{r logit_parameters_dummy_stan, eval = F, echo = T}
-# Parameters from the Stan model (method 2 only).
-library(tidybayes)
-params.logit.df = logit.stan.fit %>%
-  gather_draws(beta[i]) %>%
-  ungroup() %>%
-  mutate(parameter = fct_reorder(case_when(i == 1 ~ "intercept",
-                                           i == 2 ~ "battery",
-                                           i == 3 ~ "followers",
-                                           i == 4 ~ "skywalker",
-                                           i == 5 ~ "left",
-                                           i == 6 ~ "exam.1",
-                                           i == 7 ~ "exam.2",
-                                           i == 8 ~ "exam.3"), i)) %>%
-  group_by(parameter) %>%
-  summarize(Estimate = median(.value),
-            `2.5%` = quantile(.value, 0.025),
-            `25%` = quantile(.value, 0.25),
-            `75%` = quantile(.value, 0.75),
-            `97.5%` = quantile(.value, 0.975)) %>%
-  ungroup()
-params.logit.df
 ```
 
 ```{r logit_parameters, echo = F}
@@ -664,7 +615,7 @@ round(logit.1.fit.summary, 4)
 round(coef(summary(logit.2.fit)), 4)
 ```
 
-```{r logit_parameters_stan, eval = params$eval.stan, echo = F}
+```{r logit_parameters_stan, eval = params$eval.stan, class.source = "fold-show"}
 # Parameters from the Stan model (method 2 only).
 library(tidybayes)
 params.logit.df = logit.stan.fit %>%
@@ -710,13 +661,13 @@ exams.df = exams.df %>%
            group_by(i) %>%
            summarize(pred = median(.value)) %>%
            arrange(i) %>%
-           pull(pred)) %>%
-  mutate(resid.logit.stan = exam.raw - pred.logit.stan)
+           pull(pred),
+         resid.logit.stan = exam.raw - pred.logit.stan)
 ```
 
 #### Plot fitted values
 
-```{r plot_logit_preds, fig.height = 3, fig.width = 5, fig.align = "center"}
+```{r plot_logit_preds, fig.height = 3.5, fig.width = 5, fig.align = "center"}
 # Predictions from the R model (method 1).
 exams.df %>%
   ggplot(aes(x = pred.logit.1, y = exam.raw)) +
@@ -724,14 +675,14 @@ exams.df %>%
   geom_abline(slope = 1, intercept = 0, color = blues[1]) +
   geom_hline(yintercept = 0) +
   geom_vline(xintercept = 0) +
-  scale_x_continuous("Predicted final exam score",
-                     limits = c(0, 100)) +
-  scale_y_continuous("Observed final exam score",
-                     limits = c(0, 100)) +
+  scale_x_continuous(limits = c(0, 100)) +
+  scale_y_continuous(limits = c(0, 100)) +
   theme(legend.position = "none",
         panel.border = element_blank(),
         axis.ticks = element_blank()) +
-  ggtitle("Logit-normal regression (method 1): fitted vs. observed values")
+  labs(x = "Predicted final exam score", y = "Observed final exam score",
+       title = "Logit-normal regression (method 1)",
+       subtitle = "Fitted vs. observed values")
 
 # Predictions from the R model (method 2).
 exams.df %>%
@@ -740,17 +691,17 @@ exams.df %>%
   geom_abline(slope = 1, intercept = 0, color = blues[1]) +
   geom_hline(yintercept = 0) +
   geom_vline(xintercept = 0) +
-  scale_x_continuous("Predicted final exam score",
-                     limits = c(0, 100)) +
-  scale_y_continuous("Observed final exam score",
-                     limits = c(0, 100)) +
+  scale_x_continuous(limits = c(0, 100)) +
+  scale_y_continuous(limits = c(0, 100)) +
   theme(legend.position = "none",
         panel.border = element_blank(),
         axis.ticks = element_blank()) +
-  ggtitle("Logit-normal regression (method 2): fitted vs. observed values")
+  labs(x = "Predicted final exam score", y = "Observed final exam score",
+       title = "Logit-normal regression (method 2)",
+       subtitle = "Fitted vs. observed values")
 ```
 
-```{r plot_logit_preds_stan, eval = params$eval.stan, fig.height = 3, fig.width = 5, fig.align = "center"}
+```{r plot_logit_preds_stan, eval = params$eval.stan, fig.height = 3.5, fig.width = 5, fig.align = "center"}
 # Predictions from the Stan model (method 2 only).
 exams.df %>%
   ggplot(aes(x = pred.logit.stan, y = exam.raw)) +
@@ -758,13 +709,13 @@ exams.df %>%
   geom_abline(slope = 1, intercept = 0, color = blues[1]) +
   geom_hline(yintercept = 0) +
   geom_vline(xintercept = 0) +
-  scale_x_continuous("Predicted final exam score",
-                     limits = c(0, 100)) +
-  scale_y_continuous("Observed final exam score",
-                     limits = c(-10, 100)) +
+  scale_x_continuous(limits = c(0, 100)) +
+  scale_y_continuous(limits = c(-10, 100)) +
   theme(panel.border = element_blank(),
         axis.ticks = element_blank()) +
-  ggtitle("Logit-normal regression (Bayesian): fitted vs. observed values")
+  labs(x = "Predicted final exam score", y = "Observed final exam score",
+       title = "Logit-normal regression (Bayesian)",
+       subtitle = "Fitted vs. observed values")
 ```
 
 #### Stan code
@@ -785,7 +736,7 @@ For notational convenience, define $\mu$ as the inverse logit of $z$.
 
 $$\mu_i = \mbox{logit}^{-1}(z_i)$$
 
-We then model $y$ as a random variable with a beta distribution, parameterized in terms of $\mu$ (the mean of the distribution) and $\phi$ (a scale parameter, which must be positive).  It's possible to model $\phi$ as a function of $x$, just as $\mu$ is a function of $x$, but in this example we estimate a single fixed $\phi$.  Like the logit-normal distribution, the beta distribution is supported between 0 and 1.
+We then model $y$ as a random variable with a beta distribution, parameterized in terms of $\mu$ (the mean of the distribution, which must be between 0 and 1) and $\phi$ (a scale parameter, which must be positive).  It's possible to model $\phi$ as a function of $x$, just as $\mu$ is a function of $x$, but in this example we estimate a single fixed $\phi$.  Like the logit-normal distribution, the beta distribution is supported between 0 and 1.
 
 $$\frac{y_i}{100} \sim \mbox{Beta}(\mu_i \phi, (1 - \mu_i) \phi)$$
 
@@ -800,14 +751,13 @@ expand.grid(
          mu.label = paste("mu == '", mu, "'", sep = "")) %>%
   ggplot(aes(x = y)) +
   geom_histogram() +
-  scale_x_continuous(expression(frac(y, 100))) +
-  scale_y_continuous("") +
   facet_grid(mu.label ~ phi.label, scales = "free",
              labeller = "label_parsed") +
   theme(axis.ticks.y = element_blank(),
         axis.text.y = element_blank(),
         axis.text.x = element_text(size = 10)) +
-  ggtitle("Examples of beta distributions")
+  labs(x = expression(frac(y, 100)), y = "",
+       title = "Examples of beta distributions")
 ```
 
 #### Fit the model
@@ -831,12 +781,12 @@ beta.stan.fit = stan(file = "beta_model.stan",
 
 #### Summarize fitted parameters
 
-```{r beta_parameters}
+```{r beta_parameters, class.source = "fold-show"}
 # Parameters from the R model.
 round(coef(summary(beta.fit))$mean, 4)
 ```
 
-```{r beta_parameters_stan, eval = params$eval.stan}
+```{r beta_parameters_stan, eval = params$eval.stan, class.source = "fold-show"}
 # Parameters from the Stan model.
 library(tidybayes)
 params.beta.df = beta.stan.fit %>%
@@ -877,13 +827,13 @@ exams.df = exams.df %>%
            group_by(i) %>%
            summarize(pred = median(.value)) %>%
            arrange(i) %>%
-           pull(pred)) %>%
-  mutate(resid.beta.stan = exam.raw - pred.beta.stan)
+           pull(pred),
+         resid.beta.stan = exam.raw - pred.beta.stan)
 ```
 
 #### Plot fitted values
 
-```{r plot_beta_preds, fig.height = 3, fig.width = 5, fig.align = "center"}
+```{r plot_beta_preds, fig.height = 3.5, fig.width = 5, fig.align = "center"}
 # Predictions from the R model.
 exams.df %>%
   ggplot(aes(x = pred.beta, y = exam.raw)) +
@@ -891,17 +841,16 @@ exams.df %>%
   geom_abline(slope = 1, intercept = 0, color = blues[1]) +
   geom_hline(yintercept = 0) +
   geom_vline(xintercept = 0) +
-  scale_x_continuous("Predicted final exam score",
-                     limits = c(0, 100)) +
-  scale_y_continuous("Observed final exam score",
-                     limits = c(0, 100)) +
+  scale_x_continuous(limits = c(0, 100)) +
+  scale_y_continuous(limits = c(0, 100)) +
   theme(legend.position = "none",
         panel.border = element_blank(),
         axis.ticks = element_blank()) +
-  ggtitle("Beta regression: fitted vs. observed values")
+  labs(x = "Predicted final exam score", y = "Observed final exam score",
+       title = "Beta regression", subtitle = "Fitted vs. observed values")
 ```
 
-```{r plot_beta_preds_stan, eval = params$eval.stan, fig.height = 3, fig.width = 5, fig.align = "center"}
+```{r plot_beta_preds_stan, eval = params$eval.stan, fig.height = 3.5, fig.width = 5, fig.align = "center"}
 # Predictions from the Stan model.
 exams.df %>%
   ggplot(aes(x = pred.beta.stan, y = exam.raw)) +
@@ -909,13 +858,13 @@ exams.df %>%
   geom_abline(slope = 1, intercept = 0, color = blues[1]) +
   geom_hline(yintercept = 0) +
   geom_vline(xintercept = 0) +
-  scale_x_continuous("Predicted final exam score",
-                     limits = c(0, 100)) +
-  scale_y_continuous("Observed final exam score",
-                     limits = c(-10, 100)) +
+  scale_x_continuous(limits = c(0, 100)) +
+  scale_y_continuous(limits = c(-10, 100)) +
   theme(panel.border = element_blank(),
         axis.ticks = element_blank()) +
-  ggtitle("Beta regression (Bayesian): fitted vs. observed values")
+  labs(x = "Predicted final exam score", y = "Observed final exam score",
+       title = "Beta regression (Bayesian)",
+       subtitle = "Fitted vs. observed values")
 ```
 
 #### Stan code
@@ -926,7 +875,7 @@ writeLines(readLines("beta_model.stan"))
 
 ### Comparing the four models for the final exam dataset
 
-Fundamentally, all four of these models assume that $y$ is a (possibly non-linear) function of a linear combination of the predictor variables.  It's not surprising, then, that the fitted coefficients for the predictors are highly similar across all four models.  (The absolute values of the predictors differ, but their relative importance is clearly consistent.)
+Fundamentally, all four of these models assume that $y$ is a (possibly non-linear) function of a linear combination of the predictor variables.  It's not surprising, then, that the fitted coefficients for the predictors are highly similar across all four models.  (The precise values of the coefficients differ somewhat, but their relative importance is clearly consistent.)
 
 ```{r plot_parameters, fig.height = 5, fig.width = 7, fig.align = "center"}
 bind_rows(
@@ -956,10 +905,10 @@ bind_rows(
                      ymax = Estimate + (qnorm(0.025) * Std..Error)),
                  color = blues[1]) +
   geom_hline(yintercept = 0) +
-  scale_x_discrete("Parameter") +
   facet_wrap(~ model, scales = "free_x") +
   coord_flip() +
-  ggtitle("Parameter estimates for the same dataset from normal, censored,\nlogit-normal, and beta regressions")
+  labs(x = "Parameter",
+       title = "Parameter estimates for the same dataset from normal, censored,\nlogit-normal, and beta regressions")
 ```
 
 For the same reasons, the predictions made by the four models are highly correlated with each other.  A few differences are worth noting:
@@ -973,14 +922,14 @@ library(GGally)
 exams.df %>%
   dplyr::select(normal = pred.normal, censored = pred.censored,
                 `logit-normal` = pred.logit.1, beta = pred.beta) %>%
-  ggpairs(lower = list(continuous = wrap(
-    function(data, mapping) {
+  ggpairs(lower = list(continuous =
+    function(data, mapping, ...) {
       ggplot(data = data, mapping = mapping) +
         geom_point() +
         geom_abline(slope = 1, intercept = 0, color = blues[1])
     }
-  ))) +
-  ggtitle("Predictions for the same dataset from normal, censored, logit-normal,\nand beta regressions")
+  )) +
+  labs(title = "Predictions for the same dataset from normal, censored, logit-normal,\nand beta regressions")
 ```
 
 When we look at the residuals from each model, we see that they are fairly comparable.  The beta regression struggles the most, with a sizeable number of under-predictions; the model predicts no very high scores at all (the highest prediction is `r round(max(exams.df$pred.beta), 2)`).  The logit-normal regression does fairly well but has a long tail of under-predictions.  The normal and censored regressions are extremely similar.
@@ -1000,9 +949,8 @@ exams.df %>%
   geom_violin(color = yellows[4], fill = yellows[4]) +
   geom_boxplot(color = "white", width = 0.1, outlier.alpha = 0) +
   stat_summary(fun.y = "median", geom = "point", color = yellows[4]) +
-  scale_x_discrete("Model") +
-  scale_y_continuous("Residual") +
-  coord_flip()
+  coord_flip() +
+  labs(x = "Model", y = "Residuals")
 ```
 
 ### Comparing the four models via simulation
@@ -1010,7 +958,7 @@ exams.df %>%
 To explore differences among the four models more systematically, I simulated datasets in which final exam score (scaled to 0-1) was a function of a single predictor variable (which I called "GPA", although the variable was actually $N(0, 1)$ distributed).  The code that generated the simulations that follow is available [here](https://github.com/kaplanas/nonstandard-regression) as `01-create_datasets.R`; graphs are produced by the code in `02-evaluate_models.R`.  The simulations varied along several dimensions:
 
 + Average score: mid (0.5), high (0.8)
-+ Standard deviation of scores: narrow (0.2), wide (0.5)
++ Error term: narrow (0.2), wide (0.5)
 + Number of observations: 100, 500
 + Strength of association between GPA and score (5 steps)
 + Distribution that generated score from GPA (censored, logit-normal, beta)
@@ -1019,7 +967,7 @@ To explore differences among the four models more systematically, I simulated da
 knitr::include_graphics("images/simulated_datasets.png")
 ```
 
-I generated 100 simulated datasets for each combination of the above features, and fit four models to each one (normal, censored, logit-normal, and beta).  The first question I was interested in was how often these models were able to detect a significant effect of GPA at $\alpha = 0.05$.  The overall patterns were not surprising: models were more likely to find a significant effect when there were many observations, small standard deviations, large effects of GPA, and when the scores were not clustered near the boundary.  However, the specific model fit to the data made little or no difference: all the regression types performed about the same, regardless of the true distribution that had generated the data.
+I generated 100 simulated datasets for each combination of the above features, and fit four models to each one (normal, censored, logit-normal, and beta).  The first question I was interested in was how often these models were able to detect a significant effect of GPA at $\alpha = 0.05$.  The overall patterns were not surprising: models were more likely to find a significant effect when there were many observations, small error terms, large effects of GPA, and when the scores were not clustered near the boundary.  However, the specific model fit to the data made little or no difference: all the regression types performed about the same, regardless of the true distribution that had generated the data.
 
 ```{r significant_effects, fig.align = "center", out.width = "1000px", echo = F}
 knitr::include_graphics("images/significant_effects.png")
@@ -1045,15 +993,14 @@ exams.df = exams.df %>%
                                   "E", "D", "C", "B", "A"))
 ```
 
-In a real dataset, of course, there would be little point in working with letter grades if we have access to the underlying scores, which provide us with more information.  But for purposes of illustration, it's helpful to be able to assess how much information each regression model is able to recover.
+In a real dataset, of course, there's little point in working with letter grades if we have access to the underlying scores, which provide us with more information.  But for purposes of illustration, it's helpful to be able to assess how much information each regression model is able to recover.
 
 ```{r exam_grade_distribution, fig.height = 3, fig.width = 6, fig.align = "center"}
 exams.df %>%
   ggplot(aes(x = exam.grade)) +
   geom_bar() +
-  scale_x_discrete("Final exam grade") +
-  scale_y_continuous("Number of observations") +
-  ggtitle("Distribution of final exam grades")
+  labs(x = "Final exam grade", y = "Number of observations",
+       title = "Distribution of final exam grades")
 ```
 
 ### Preparing the data for Stan
@@ -1094,12 +1041,12 @@ discrete.normal.stan.fit = stan(file = "discrete_normal_model.stan",
 
 #### Summarize fitted parameters
 
-```{r discrete_normal_parameters}
+```{r discrete_normal_parameters, class.source = "fold-show"}
 # Parameters from the R model.
 round(coef(summary(discrete.normal.fit)), 4)
 ```
 
-```{r discrete_normal_parameters_stan, eval = params$eval.stan}
+```{r discrete_normal_parameters_stan, eval = params$eval.stan, class.source = "fold-show"}
 # Parameters from the Stan model.
 library(tidybayes)
 params.discrete.normal.df = discrete.normal.stan.fit %>%
@@ -1143,7 +1090,7 @@ exams.df = exams.df %>%
 
 #### Plot fitted values
 
-```{r plot_discrete_normal_preds, fig.height = 3, fig.width = 5, fig.align = "center"}
+```{r plot_discrete_normal_preds, fig.height = 4, fig.width = 5, fig.align = "center"}
 # Predictions from the R model.
 exams.df %>%
   mutate(alert = pred.discrete.normal > 5 | pred.discrete.normal < 1) %>%
@@ -1153,38 +1100,37 @@ exams.df %>%
   geom_abline(slope = 1, intercept = 0, color = blues[1]) +
   geom_hline(yintercept = 0) +
   geom_vline(xintercept = 0) +
-  scale_x_discrete("Observed final exam grade") +
-  scale_y_continuous("Predicted final exam grade",
-                     breaks = -1:5,
+  scale_y_continuous(breaks = -1:5,
                      labels = c("-1", "0",
                                 levels(exams.df$exam.grade))) +
   scale_color_manual(values = c("black", "red")) +
   theme(legend.position = "none",
         panel.border = element_blank(),
         axis.ticks = element_blank()) +
-  ggtitle("Normal regression: fitted vs. observed")
+  labs(x = "Observed final exam grade", y = "Predicted final exam grade",
+       title = "Normal regression", subtitle = "Fitted vs. observed values")
 ```
 
-```{r plot_discrete_normal_preds_stan, eval = params$eval.stan, fig.height = 3, fig.width = 5, fig.align = "center"}
+```{r plot_discrete_normal_preds_stan, eval = params$eval.stan, fig.height = 4, fig.width = 5, fig.align = "center"}
 # Predictions from the Stan model.
 exams.df %>%
   mutate(alert = pred.discrete.normal.stan > 5 | pred.discrete.normal.stan < 1) %>%
-  ggplot(aes(x = exam.grade, y = pred.discrete.normal.stan,
+  ggplot(aes(x = exam.grade, y = round(pred.discrete.normal.stan),
              color = alert)) +
   geom_jitter(alpha = 0.2) +
   geom_abline(slope = 1, intercept = 0, color = blues[1]) +
   geom_hline(yintercept = 0) +
   geom_vline(xintercept = 0) +
-  scale_x_discrete("Observed final exam grade") +
-  scale_y_continuous("Predicted final exam grade",
-                     breaks = -1:5,
+  scale_y_continuous(breaks = -1:5,
                      labels = c("-1", "0",
                                 levels(exams.df$exam.grade))) +
   scale_color_manual(values = c("black", "red")) +
   theme(legend.position = "none",
         panel.border = element_blank(),
         axis.ticks = element_blank()) +
-  ggtitle("Normal regression (Bayesian): fitted vs. observed")
+  labs(x = "Observed final exam grade", y = "Predicted final exam grade",
+       title = "Normal regression (Bayesian)",
+       subtitle = "Fitted vs. observed values")
 ```
 
 #### Stan code
@@ -1199,9 +1145,9 @@ Ordered logistic regression models each discrete outcome as a probabilistic func
 
 $$z_i: \mbox{student's performance}$$
 
-$$z_i \sim \mbox{Logistic}(\alpha + \beta x_i)$$
+$$z_i \sim \mbox{Logistic}(\beta x_i)$$
 
-In addition to the $\alpha$ and $\beta$ coefficients, an ordered logistic regression model fits a series of cutpoints $c$: one less than the total number of possible discrete outcomes.  The probability that $y_i$ is a particular discrete outcome is equal to the proportion of the distribution of $z_i$ that falls between the two relevant cutpoints.
+In addition to the $\beta$ coefficients, an ordered logistic regression model fits a series of cutpoints $c$: one less than the total number of possible discrete outcomes.  The probability that $y_i$ is a particular discrete outcome is equal to the proportion of the distribution of $z_i$ that falls between the two relevant cutpoints.
 
 $$y_i: \mbox{student's grade}$$
 
@@ -1220,12 +1166,14 @@ data.frame(z = seq(-5, 5, 0.01)) %>%
   geom_vline(xintercept = c(-3, -2, -0.5, 2)) +
   annotate("label", x = 0.7, y = 0.1,
            label = eval(bquote(expression(P(y[i] == B) == .(round(plogis(2) - plogis(-0.5), 2)))))) +
-  scale_x_continuous(expression(z[i] == alpha + beta*x[i]),
+  scale_x_continuous(expression(z[i] == beta*x[i]),
                      breaks = c(-3, -2, -0.5, 2),
                      labels = c("E|D", "D|C", "C|B", "B|A")) +
   scale_y_continuous("") +
   theme(panel.grid.minor.x = element_blank())
 ```
+
+Note that I've omitted an overall intercept $\alpha$ from this model.  If we try to model both $\alpha$ and the full set of cutpoints $c$, the model is nonidentifiable: note that the predictions in the figure above would be exactly the same if we added some arbitrary constant (say, 6.4) to each $z_i$ _and_ to each cutpoint.  An alternative (not shown here) is to include $\alpha$ but fix one of the cutpoints to a predetermined value (usually 0).
 
 #### Fit the model
 
@@ -1259,14 +1207,13 @@ params.ordered.logistic.df = bind_rows(
   ordered.logistic.stan.fit %>%
     gather_draws(beta[i]) %>%
     ungroup() %>%
-    mutate(parameter = case_when(i == 1 ~ "intercept",
-                                 i == 2 ~ "battery",
-                                 i == 3 ~ "followers",
-                                 i == 4 ~ "skywalker",
-                                 i == 5 ~ "left",
-                                 i == 6 ~ "exam.1",
-                                 i == 7 ~ "exam.2",
-                                 i == 8 ~ "exam.3"), i) %>%
+    mutate(parameter = case_when(i == 1 ~ "battery",
+                                 i == 2 ~ "followers",
+                                 i == 3 ~ "skywalker",
+                                 i == 4 ~ "left",
+                                 i == 5 ~ "exam.1",
+                                 i == 6 ~ "exam.2",
+                                 i == 7 ~ "exam.3"), i) %>%
     dplyr::select(parameter, .value),
   ordered.logistic.stan.fit %>%
     gather_draws(c[i]) %>%
@@ -1277,10 +1224,9 @@ params.ordered.logistic.df = bind_rows(
                                  i == 4 ~ "B|A")) %>%
     dplyr::select(parameter, .value)
 ) %>%
-  mutate(parameter = fct_relevel(parameter, "intercept", "battery",
-                                 "followers", "skywalker", "left", "exam.1",
-                                 "exam.2", "exam.3", "E|D", "D|C", "C|B",
-                                 "B|A")) %>%
+  mutate(parameter = fct_relevel(parameter, "battery", "followers", "skywalker",
+                                 "left", "exam.1", "exam.2", "exam.3", "E|D",
+                                 "D|C", "C|B", "B|A")) %>%
   group_by(parameter) %>%
   summarize(Estimate = median(.value),
             `2.5%` = quantile(.value, 0.025),
@@ -1318,9 +1264,9 @@ exams.df = exams.df %>%
            group_by(i) %>%
            summarize(pred = median(.value)) %>%
            arrange(i) %>%
-           pull(pred)) %>%
-  mutate(pred.ordered.logistic.stan = c("E", "D", "C", "B", "A")[pred.ordered.logistic.stan]) %>%
-  mutate(pred.ordered.logistic.stan = fct_relevel(pred.ordered.logistic.stan,
+           pull(pred),
+         pred.ordered.logistic.stan = c("E", "D", "C", "B", "A")[pred.ordered.logistic.stan],
+         pred.ordered.logistic.stan = fct_relevel(pred.ordered.logistic.stan,
                                                   "E", "D", "C", "B", "A"))
 ```
 
@@ -1334,11 +1280,10 @@ exams.df %>%
   geom_abline(slope = 1, intercept = 0, color = blues[1]) +
   geom_hline(yintercept = 0) +
   geom_vline(xintercept = 0) +
-  scale_x_discrete("Observed final exam grade") +
-  scale_y_discrete("Predicted final exam grade") +
   theme(legend.position = "none",
         panel.border = element_blank(),
-        axis.ticks = element_blank())
+        axis.ticks = element_blank()) +
+  labs(x = "Observed final exam grade", y = "Predicted final exam grade")
 ```
 
 ```{r plot_ordered_logistic_preds_stan, eval = params$eval.stan, fig.height = 3, fig.width = 5, fig.align = "center"}
@@ -1349,11 +1294,10 @@ exams.df %>%
   geom_abline(slope = 1, intercept = 0, color = blues[1]) +
   geom_hline(yintercept = 0) +
   geom_vline(xintercept = 0) +
-  scale_x_discrete("Observed final exam grade") +
-  scale_y_discrete("Predicted final exam grade") +
   theme(legend.position = "none",
         panel.border = element_blank(),
-        axis.ticks = element_blank())
+        axis.ticks = element_blank()) +
+  labs(x = "Observed final exam grade", y = "Predicted final exam grade")
 ```
 
 #### Stan code
@@ -1364,7 +1308,7 @@ writeLines(readLines("ordered_logistic_model.stan"))
 
 ### Evaluating the two models for the final exam dataset
 
-The ordered logistic regression model clearly outperforms the classical linear regression: `r round(mean(as.numeric(exams.df$final.exam.grade) == as.numeric(exams.df$pred.ordered.logistic)) * 100)`% accuracy for the ordered logistic regression, `r round(mean(as.numeric(exams.df$final.exam.grade) == exams.df$pred.discrete.normal) * 100)`% for classical linear regression.  (There are, of course, better measures of performance for multi-class classifiers, but some of the better ones -- such as log-loss -- require an estimate of the probability of each class for each observation, which does not come "baked in" with classical linear regression.)
+The ordered logistic regression model clearly outperforms the classical linear regression: `r round(mean(as.numeric(exams.df$exam.grade) == as.numeric(exams.df$pred.ordered.logistic)) * 100)`% accuracy for the ordered logistic regression, `r round(mean(as.numeric(exams.df$exam.grade) == exams.df$pred.discrete.normal) * 100)`% for classical linear regression.  (There are, of course, better measures of performance for multi-class classifiers, but some of the better ones -- such as log-loss -- require an estimate of the probability of each class for each observation, which does not come "baked in" with classical linear regression.)
 
 A convenient characteristic of the final exam dataset is that the latent variable $z$ has a very clear, and observed, real-world interpretation: the student's numeric score on the exam.  (Or very nearly so; the score is bounded, as discussed above, and its relationship to the student's letter grade is deterministic rather than stochastic.)  For this dataset, the ordered logistic regression model does remarkably well at recovering (a linear function of) students' actual scores, considering the fact that converting scores to letter grades throws away information.
 
@@ -1397,14 +1341,17 @@ exams.df %>%
               ungroup() %>%
               mutate(max.x = ifelse(g == "A", 100, max.x),
                      min.x = ifelse(g == "E", 0, min.x),
-                     max.y = ifelse(g == "A", max(exams.df$latent.ordered.logistic), max.y),
-                     min.y = ifelse(g == "E", min(exams.df$latent.ordered.logistic), min.y)),
+                     max.y = ifelse(g == "A",
+                                    max(exams.df$latent.ordered.logistic),
+                                    max.y),
+                     min.y = ifelse(g == "E",
+                                    min(exams.df$latent.ordered.logistic),
+                                    min.y)),
             aes(x = min.x + ((max.x - min.x) / 2),
                 y = min.y + ((max.y - min.y) / 2),
                 label = g),
             color = "black", fill = yellows[1], size = 5) +
-  scale_x_continuous("Final exam score") +
-  scale_y_continuous("z")
+  labs(x = "Final exam score", y = "z")
 ```
 
 # Unordered discrete dependent variables
@@ -1413,7 +1360,6 @@ Finally, our sample dataset has an example of a discrete variable whose values a
 
 + Monday, Wednesday, and Friday (MWF)
 + Tuesday and Thursday (TR)
-+ Saturday (S)
 + Online
 
 ### Preparing the data for Stan
@@ -1440,21 +1386,13 @@ multi.fit = multinom(days ~ battery + followers + skywalker + left,
                      data = exams.df)
 ```
 
-```{r multi_fit_stan, eval = params$eval.stan, include = F}
-# Fit a model with Stan.
-library(rstan)
-multi.stan.fit = stan(file = "multi_model.stan",
-                      data = days.stan.data,
-                      chains = 4, iter = 2000, cores = 4)
-```
-
 To assess whether some types of students are more likely to sign up for certain meeting patterns than others, we can fit a multinomial regression model.  In this model, we posit $k$ latent variables $z_{ik}$, one for each possible outcome $k$, each representing the propensity of observation $i$ to fall into category $k$.
 
 $$z_{ik}: \mbox{propensity of observation $i$ to fall into category $k$}$$
 
 We fit a full set of coefficients $\alpha$ and $\beta$ for every outcome $k$ except one (here, "Online"; if we try to fit coefficients for every outcome, the model is nonidentifiable).
 
-$$z_{ik} = \Bigg\{\begin{array}{ll} 0 & k = 1 \\ \alpha_k + \beta_k x_{ik} & k > 1 \end{array}$$
+$$z_{ik} = \left\{\begin{array}{ll} 0 & k = 1 \\ \alpha_k + \beta_k x_i & k > 1 \end{array}\right.$$
 
 The probability that observation $i$ falls into category $k$ is then defined by the softmax function over $z_{ik}$:
 
@@ -1479,21 +1417,20 @@ rbind(0, coef(multi.fit) %*%
                             "z[i]", "e^z[i]", "p[i]")) %>%
   ggplot(aes(x = value, y = days)) +
   geom_point(size = 3) +
-  scale_x_continuous("") +
-  scale_y_discrete("") +
-  facet_wrap(~ unit, ncol = 1, scales = "free", labeller = label_parsed)
+  facet_wrap(~ unit, ncol = 1, scales = "free", labeller = label_parsed) +
+  labs(x = "", y = "")
 ```
 
 #### Fit the model
 
-```{r multi_fit_dummy, eval = F, echo = T, class.source = "fold-show"}
+```{r multi_fit_dummy, eval = F, class.source = "fold-show"}
 # Fit a model in R.
 library(nnet)
 multi.fit = multinom(days ~ battery + followers + skywalker + left,
                      data = exams.df)
 ```
 
-```{r multi_fit_dummy_stan, eval = F, echo = T, class.source = "fold-show"}
+```{r multi_fit_stan, eval = params$eval.stan, class.source = "fold-show"}
 # Fit a model with Stan.
 library(rstan)
 multi.stan.fit = stan(file = "multi_model.stan",
@@ -1503,12 +1440,12 @@ multi.stan.fit = stan(file = "multi_model.stan",
 
 #### Summarize fitted parameters
 
-```{r multi_parameters}
+```{r multi_parameters, class.source = "fold-show"}
 # Parameters from the R model.
 round(coef(summary(multi.fit)), 4)
 ```
 
-```{r multi_parameters_stan, eval = params$eval.stan}
+```{r multi_parameters_stan, eval = params$eval.stan, class.source = "fold-show"}
 # Parameters from the Stan model.
 library(tidybayes)
 params.multi.df = multi.stan.fit %>%
@@ -1522,9 +1459,8 @@ params.multi.df = multi.stan.fit %>%
                                            i == 6 ~ "exam.1",
                                            i == 7 ~ "exam.2",
                                            i == 8 ~ "exam.3"), i),
-         outcome = fct_reorder(case_when(j == 1 ~ "Online",
-                                         j == 2 ~ "MWF",
-                                         j == 3 ~ "TR"), j)) %>%
+         outcome = fct_reorder(case_when(j == 1 ~ "MWF",
+                                         j == 2 ~ "TR"), j)) %>%
   group_by(parameter, outcome) %>%
   summarize(Estimate = median(.value),
             `2.5%` = quantile(.value, 0.025),
@@ -1555,10 +1491,9 @@ exams.df = exams.df %>%
            group_by(i) %>%
            summarize(pred = median(.value)) %>%
            arrange(i) %>%
-           pull(pred)) %>%
-  mutate(pred.multi.stan = c("Online", "MWF", "TR")[pred.multi.stan]) %>%
-  mutate(pred.multi.stan = fct_relevel(pred.multi.stan,
-                                       "Online", "MWF", "TR"))
+           pull(pred),
+         pred.multi.stan = c("Online", "MWF", "TR")[pred.multi.stan],
+         pred.multi.stan = fct_relevel(pred.multi.stan, "Online", "MWF", "TR"))
 ```
 
 #### Plot fitted values
@@ -1568,11 +1503,10 @@ exams.df = exams.df %>%
 exams.df %>%
   ggplot(aes(x = days, y = pred.multi)) +
   geom_jitter(alpha = 0.2) +
-  scale_x_discrete("Observed meeting pattern") +
-  scale_y_discrete("Predicted meeting pattern") +
   theme(legend.position = "none",
         panel.border = element_blank(),
-        axis.ticks = element_blank())
+        axis.ticks = element_blank()) +
+  labs(x = "Observed meeting pattern", y = "Predicted meeting pattern")
 ```
 
 ```{r plot_multi_preds_stan, eval = params$eval.stan, fig.height = 3, fig.width = 5, fig.align = "center"}
@@ -1580,11 +1514,10 @@ exams.df %>%
 exams.df %>%
   ggplot(aes(x = days, y = pred.multi)) +
   geom_jitter(alpha = 0.2) +
-  scale_x_discrete("Observed meeting pattern") +
-  scale_y_discrete("Predicted meeting pattern") +
   theme(legend.position = "none",
         panel.border = element_blank(),
-        axis.ticks = element_blank())
+        axis.ticks = element_blank()) +
+  labs(x = "Observed meeting pattern", y = "Predicted meeting pattern")
 ```
 
 #### Stan code

@@ -12,7 +12,12 @@ transformed data {
 }
 
 parameters {
-  matrix[I+1,J] beta; // predictor coefficients for each possible outcome
+  matrix[I+1,J-1] beta; // predictor coefficients for each possible outcome except one
+}
+
+transformed parameters {
+  matrix[I+1,J] beta_baseline; // add zeros for the first outcome category
+  beta_baseline = append_col(rep_vector(0, I + 1), beta);
 }
 
 model {
@@ -20,13 +25,13 @@ model {
   to_vector(beta) ~ std_normal();
   // model
   for(n in 1:N) {
-    y[n] ~ categorical_logit((X_intercept[n,] * beta)');
+    y[n] ~ categorical_logit((X_intercept[n,] * beta_baseline)');
   }
 }
 
 generated quantities {
   int y_pred[N];
   for(n in 1:N) {
-    y_pred[n] = categorical_logit_rng((X_intercept[n,] * beta)');
+    y_pred[n] = categorical_logit_rng((X_intercept[n,] * beta_baseline)');
   }
 }
